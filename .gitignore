@@ -2,3 +2,4 @@
 .*/
 # ignore temporary files
 temp.*
+*.vsix

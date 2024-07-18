@@ -1,8 +1,11 @@
 {
   "name": "son-dark-eight",
   "displayName": "son_dark_eight",
-  "description": "",
+  "description": "cyan color based dark theme",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soneight/darkness"},
   "engines": {
     "vscode": "^1.91.0"
   },
