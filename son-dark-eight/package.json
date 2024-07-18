@@ -1,0 +1,21 @@
+{
+  "name": "son-dark-eight",
+  "displayName": "son_dark_eight",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "contributes": {
+    "themes": [
+      {
+        "label": "Son Dark Eight",
+        "uiTheme": "vs-dark",
+        "path": "./themes/Son Dark Eight-color-theme.json"
+      }
+    ]
+  }
+}
