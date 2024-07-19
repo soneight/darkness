@@ -1,5 +1,5 @@
 root = true
-[*.{js}]
+[*.{asm,c,cs,css,cxx,h,html,hxx,js,php,py,sql}]
 charset = utf-8
 end_of_line = lf
 indent_size = 4
