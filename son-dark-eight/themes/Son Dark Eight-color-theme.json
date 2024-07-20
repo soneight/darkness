@@ -243,7 +243,8 @@
 		{
 			"name": "Yellow",
 			"scope": [
-				"entity.name.function"
+				"entity.name.function",
+				"support.function"
 			],
 			"settings": { "foreground": "#C0C080" }
 		},
@@ -267,7 +268,8 @@
 			"name": "Cyan",
 			"scope": [
 				"constant.other.placeholder",
-				"variable"
+				"variable",
+				"entity.other.attribute-name"
 			],
 			"settings": { "foreground": "#80C0C0" }
 		},
@@ -283,7 +285,8 @@
 			"name": "Red",
 			"scope": [
 				"keyword.control",
-				"punctuation"
+				"punctuation",
+				"entity.name.tag"
 			],
 			"settings": { "foreground": "#C08080" }
 		},
@@ -300,7 +303,8 @@
 			"name": "Bold",
 			"scope": [
 				"keyword",
-				"punctuation"
+				"punctuation",
+				"entity.name.scope-resolution"
 			],
 			"settings": { "fontStyle": "bold" }
 		},
