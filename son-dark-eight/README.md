@@ -1,16 +1,12 @@
 # son-dark-eight README
 
-## Working with Markdown
+> Eight color based theme for [Visual Studio Code](https://code.visualstudio.com/)
+> with primary color being cyan.
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+Base colors are: Grey, White, Red, Green, Blue, Yellow, Cyan, Magenta.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+Color components are only this eight values (in hex): 10 20 40 60 80 A0 C0 E0 (with few exceptions).
 
-## For more information
+Version history:
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- 0.0.*: alhpa versions
