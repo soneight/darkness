@@ -15,6 +15,27 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
     - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
 
+## [0.1.1] - 2025-01-23
+
+> mostly all changes related to C/C++ support
+
+### Added
+
+- `bold` style for `variable.language`
+- `keyword.other` for `Magenta`
+- `Cyan` for link scopes (markup and string)
+- `White` for enum members (as constants)
+
+### Changed
+
+- `keyword` are global for `Red` color instead of magenta
+- `storage.type.template` for `Blue` instead of `storage.modifier` that become `White`
+- namespaces related scopes become `Grey` instead of `White`
+
+### Removed
+
+- overuse `bold` style for common scopes  
+
 ## [0.1.0] - 2025-01-16
 
 ### Added
