@@ -51,7 +51,7 @@
 		"debugExceptionWidget.background": "#202020",
 		"debugExceptionWidget.border": "#401010",
 		"debugToolBar.background": "#401010",
-        "debugToolBar.border": "#401010",
+		"debugToolBar.border": "#401010",
 		"descriptionForeground": "#A0A0A0",
 		"diffEditor.border": "#808080",
 		"diffEditor.insertedTextBackground": "#20802020",
@@ -86,7 +86,7 @@
 		"editor.snippetFinalTabstopHighlightBorder": "#101010",
 		"editor.snippetTabstopHighlightBackground": "#101010",
 		"editor.snippetTabstopHighlightBorder": "#101010",
-        "editor.stackFrameHighlightBackground": "#401010",
+		"editor.stackFrameHighlightBackground": "#401010",
 		"editor.wordHighlightBackground": "#40404080",
 		"editor.wordHighlightBorder": "#404040",
 		"editor.wordHighlightStrongBackground": "#40404080",
@@ -161,8 +161,8 @@
 		"editorWidget.resizeBorder": "#202020",
 		"errorForeground": "#E04040",
 		"extensionButton.prominentBackground": "#104040",
-        "extensionButton.prominentForeground": "#E0E0E0",
-        "extensionButton.prominentHoverBackground": "#206060",
+		"extensionButton.prominentForeground": "#E0E0E0",
+		"extensionButton.prominentHoverBackground": "#206060",
 		"focusBorder": "#206060",
 		"foreground": "#C0C0C0",
 		"gitDecoration.addedResourceForeground": "#80E080",
@@ -270,7 +270,7 @@
 		"peekViewTitleDescription.foreground": "#808080",
 		"peekViewTitleLabel.foreground": "#C0C0C0",
 		"pickerGroup.border": "#104040",
-        "pickerGroup.foreground": "#A0E0E0",
+		"pickerGroup.foreground": "#A0E0E0",
 		"progressBar.background": "#206060",
 		"profileBadge.background": "#104040",
 		"profileBadge.foreground": "#E0E080",
@@ -396,6 +396,9 @@
 			"name": "Grey",
 			"scope": [
 				"comment",
+				"invalid",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
 				"punctuation.definition.comment"
 			],
 			"settings": { "foreground": "#808080" }
@@ -405,41 +408,43 @@
 			"scope": [
 				"constant",
 				"keyword.operator",
-				"string.quoted",
-				"entity.name.scope-resolution",
-				"entity.name.namespace"
+				"storage.modifier",
+				"variable.other.enummember"
 			],
 			"settings": { "foreground": "#C0C0C0" }
 		},
 		{
 			"name": "Yellow",
 			"scope": [
+				"support.function",
 				"entity.name.function",
-				"support.function"
+				"keyword.other.operator"
 			],
 			"settings": { "foreground": "#C0C080" }
 		},
 		{
 			"name": "Blue",
 			"scope": [
-				"storage.modifier",
+				"storage.type.template"
 			],
 			"settings": { "foreground": "#8080C0" }
 		},
 		{
 			"name": "Green",
 			"scope": [
-				"entity.name.type",
 				"storage.type",
-				"support.type"
+				"support.type",
+				"entity.name.type"
 			],
 			"settings": { "foreground": "#80C080" }
 		},
 		{
 			"name": "Cyan",
 			"scope": [
-				"constant.other.placeholder",
 				"variable",
+				"string.other.link",
+				"markup.underline.link",
+				"constant.other.placeholder",
 				"entity.other.attribute-name"
 			],
 			"settings": { "foreground": "#80C0C0" }
@@ -447,15 +452,15 @@
 		{
 			"name": "Magenta",
 			"scope": [
-				"constant.character.escape",
-				"keyword"
+				"keyword.other",
+				"constant.character.escape"
 			],
 			"settings": { "foreground": "#C080C0" }
 		},
 		{
 			"name": "Red",
 			"scope": [
-				"keyword.control",
+				"keyword",
 				"punctuation",
 				"entity.name.tag"
 			],
@@ -465,18 +470,17 @@
 			"name": "Italic",
 			"scope": [
 				"constant",
-				"entity.name.function.preprocessor",
-				"string.quoted"
+				"string.quoted",
+				"variable.other.enummember",
+				"entity.name.function.preprocessor"
 			],
 			"settings": { "fontStyle": "italic" }
 		},
 		{
 			"name": "Bold",
 			"scope": [
-				"keyword",
 				"punctuation",
-				"entity.name.scope-resolution",
-				"entity.name.namespace"
+				"variable.language"
 			],
 			"settings": { "fontStyle": "bold" }
 		},
