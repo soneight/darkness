@@ -15,6 +15,16 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
     - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
 
+## [0.1.2] - 2025-01-28
+
+### Changed
+
+> All changes related to C/C++ support (less colorfull, more white and grey)
+
+- global `punctuation` `white` instead of `red` except for `punctuation.definition`
+- namespace related punctuation become `grey` as namespace itself
+- most types become `white` instead of `green`
+
 ## [0.1.1] - 2025-01-23
 
 > mostly all changes related to C/C++ support

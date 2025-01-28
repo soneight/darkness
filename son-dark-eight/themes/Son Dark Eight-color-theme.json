@@ -399,7 +399,9 @@
 				"invalid",
 				"entity.name.namespace",
 				"entity.name.scope-resolution",
-				"punctuation.definition.comment"
+				"punctuation.definition.comment",
+				"punctuation.separator.namespace",
+				"punctuation.separator.scope-resolution"
 			],
 			"settings": { "foreground": "#808080" }
 		},
@@ -407,8 +409,11 @@
 			"name": "White",
 			"scope": [
 				"constant",
+				"punctuation",
+				"entity.name.type",
 				"keyword.operator",
 				"storage.modifier",
+				"storage.type.built-in",
 				"variable.other.enummember"
 			],
 			"settings": { "foreground": "#C0C0C0" }
@@ -433,8 +438,7 @@
 			"name": "Green",
 			"scope": [
 				"storage.type",
-				"support.type",
-				"entity.name.type"
+				"support.type"
 			],
 			"settings": { "foreground": "#80C080" }
 		},
@@ -461,8 +465,8 @@
 			"name": "Red",
 			"scope": [
 				"keyword",
-				"punctuation",
-				"entity.name.tag"
+				"entity.name.tag",
+				"punctuation.definition"
 			],
 			"settings": { "foreground": "#C08080" }
 		},

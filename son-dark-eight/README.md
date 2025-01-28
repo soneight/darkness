@@ -43,8 +43,10 @@
 - all
     - avoid using `meta` rules
     - `White` for constants values and const modifiers
+    - `White` should be most common color, other colors should be used sparingly
+    - `Bold` style for punctuation
+
 - cxx (C/C++)
     - `keyword.operator` and `storage.modifier` should have same styles for parsing issues with templates 
 
 ###### Color components are only this eight values (in hex): 10 20 40 60 80 A0 C0 E0 (with few exceptions).
-
