@@ -11,23 +11,27 @@
 
 ## Base colors
 
+- White
+    - colors: default
+    - tokens: constant values, operators, quoted strings, types, punctuation 
 - Grey
     - colors: disabled elements, line numbers, squigglies, breadcrumbs
-    - tokens: comments, namespaces
-- White
-    - tokens: constant values, operators, quoted strings 
-- Yellow
-    - colors: active line number
-    - tokens: functions, overloaded operators
-- Blue
-    - tokens: templates
-- Green
-    - tokens: user defined and built-in types
+    - tokens: comments, invalid, namespace related
 - Cyan
-    - colors: active elements, selection, scrollbars, borders, links
+    - colors: active elements, selection, scrollbars, borders, links, git modified
     - tokens: variables, html attributes
 - Magenta
-    - tokens: rare keywords, escape sequences
+    - colors: underused
+    - tokens: not quoted string, other keywords, escape sequences
+- Blue
+    - colors: underused
+    - tokens: support, templates
+- Yellow
+    - colors: active line number
+    - tokens: entity, functions, overloaded operators
+- Green
+    - colors: git added
+    - tokens: storage
 - Red
     - colors: error related elements
     - tokens: keywords, html tags

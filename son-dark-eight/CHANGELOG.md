@@ -15,6 +15,14 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
     - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
 
+## [0.1.3] - 2025-02-01
+
+### Added
+
+- add global scopes for Magenta: string, Blue: support, Yellow: entity, Green: storage
+- add White: string.quoted
+- add White: storage.type.integral (for construct `enum class T : type`)
+
 ## [0.1.2] - 2025-01-28
 
 ### Changed

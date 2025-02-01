@@ -393,6 +393,21 @@
 	},
 	"tokenColors": [
 		{
+			"name": "White",
+			"scope": [
+				"constant",
+				"punctuation",
+				"string.quoted",
+				"entity.name.type",
+				"keyword.operator",
+				"storage.modifier",
+				"storage.type.built-in",
+				"storage.type.integral",
+				"variable.other.enummember"
+			],
+			"settings": { "foreground": "#C0C0C0" }
+		},
+		{
 			"name": "Grey",
 			"scope": [
 				"comment",
@@ -404,43 +419,6 @@
 				"punctuation.separator.scope-resolution"
 			],
 			"settings": { "foreground": "#808080" }
-		},
-		{
-			"name": "White",
-			"scope": [
-				"constant",
-				"punctuation",
-				"entity.name.type",
-				"keyword.operator",
-				"storage.modifier",
-				"storage.type.built-in",
-				"variable.other.enummember"
-			],
-			"settings": { "foreground": "#C0C0C0" }
-		},
-		{
-			"name": "Yellow",
-			"scope": [
-				"support.function",
-				"entity.name.function",
-				"keyword.other.operator"
-			],
-			"settings": { "foreground": "#C0C080" }
-		},
-		{
-			"name": "Blue",
-			"scope": [
-				"storage.type.template"
-			],
-			"settings": { "foreground": "#8080C0" }
-		},
-		{
-			"name": "Green",
-			"scope": [
-				"storage.type",
-				"support.type"
-			],
-			"settings": { "foreground": "#80C080" }
 		},
 		{
 			"name": "Cyan",
@@ -456,10 +434,38 @@
 		{
 			"name": "Magenta",
 			"scope": [
+				"string",
 				"keyword.other",
 				"constant.character.escape"
 			],
 			"settings": { "foreground": "#C080C0" }
+		},
+		{
+			"name": "Blue",
+			"scope": [
+				"support",
+				"storage.type.template"
+			],
+			"settings": { "foreground": "#8080C0" }
+		},
+		{
+			"name": "Yellow",
+			"scope": [
+				"entity",
+				"support.function",
+				"entity.name.function",
+				"keyword.other.operator"
+			],
+			"settings": { "foreground": "#C0C080" }
+		},
+		{
+			"name": "Green",
+			"scope": [
+				"storage",
+				"storage.type",
+				"support.type"
+			],
+			"settings": { "foreground": "#80C080" }
 		},
 		{
 			"name": "Red",

@@ -3,7 +3,7 @@
   "displayName": "Son Dark Eight",
   "description": "cyan color based dark theme",
   "publisher": "olegease",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/soneight/darkness"},
@@ -23,11 +23,11 @@
     ]
   },
   "keywords": [
-    "theme",
-    "dark",
-    "cyan",
     "C",
-    "C++"
+    "C++",
+    "cyan",
+    "dark",
+    "theme"
   ],
   "license": "BSL-1.0"
 }
