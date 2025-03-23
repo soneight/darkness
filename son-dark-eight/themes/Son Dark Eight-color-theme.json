@@ -477,9 +477,11 @@
 				"constant",
 				"punctuation",
 				"string.quoted",
+				"storage.type.js",
 				"entity.name.type",
 				"keyword.operator",
 				"storage.modifier",
+				"support.constant",
 				"storage.type.built-in",
 				"storage.type.integral",
 				"variable.other.enummember"
@@ -504,6 +506,7 @@
 			"scope": [
 				"variable",
 				"string.other.link",
+				"storage.source.cmake",
 				"markup.underline.link",
 				"constant.other.placeholder",
 				"entity.other.attribute-name"
@@ -542,7 +545,8 @@
 			"scope": [
 				"storage",
 				"storage.type",
-				"support.type"
+				"support.type",
+				"entity.source.cmake"
 			],
 			"settings": { "foreground": "#80C080" }
 		},
