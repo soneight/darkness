@@ -6,12 +6,9 @@
 #include <vector>
 #include <utility>
 
-namespace son8::darkness {
-    template< typename T >
-    concept TestConcept = requires(T t) {
-        { t.test() } -> std::same_as< void >;
-    };
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+namespace son8::darkness {
     template< typename T > struct unref_ { using type = T; };
     template< typename T > struct unref_< T& > { using type = T; };
     template< typename T > struct unref_< T&& > { using type = T; };
