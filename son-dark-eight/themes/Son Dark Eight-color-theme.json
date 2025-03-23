@@ -482,6 +482,7 @@
 				"keyword.operator",
 				"storage.modifier",
 				"support.constant",
+				"string.source.cmake",
 				"storage.type.built-in",
 				"storage.type.integral",
 				"variable.other.enummember"

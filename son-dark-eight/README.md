@@ -6,8 +6,8 @@
 ## Overview
 
 - Advanced C/C++ support
-- Basic HTML support
-- Future support for: assembly (x86_64), C#, Python, SQL, TypeScript, Web (CSS, JS)
+- Basic Web support (HTML, CSS, JS)
+- Future support for: assembly (x86_64), C#, Python, SQL, TypeScript
 
 ## Base colors
 
@@ -33,7 +33,7 @@
     - colors: git added
     - tokens: storage
 - Red
-    - colors: error related elements
+    - colors: error related elements, debug icons
     - tokens: keywords, html tags
 
 ## Styles

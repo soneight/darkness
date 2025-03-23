@@ -15,6 +15,18 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
     - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
 
+## [0.2.1] - 2025-03-23
+
+### Added
+
+- colors for elements prior to version 1.43 of VS Code
+
+### Changed
+
+- adjust cmake colors for entity, storage and string to be related to C++ colors
+- `const` and `let` make white to reflect C/C++
+- fix css property value to be white
+
 ## [0.1.3] - 2025-02-01
 
 ### Added
