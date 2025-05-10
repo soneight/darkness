@@ -7,7 +7,7 @@
 
 - Advanced C/C++ support
 - Basic Web support (HTML, CSS, JS)
-- Future support for: assembly (x86_64), C#, Python, SQL, TypeScript
+- Future support for: assembly (x86_64), TypeScript
 
 ## Base colors
 

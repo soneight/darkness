@@ -9,11 +9,18 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - tokenColors: language highlighting overhaul for 
     - `as`se`m`bly (x86_64)
     - `c`++
-    - `cs`harp
-    - `py`thon
-    - `sql`
     - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
+
+## [0.2.2] - 2025-05-10
+
+### Added
+
+- few missing theme options prior to version 1.43 of VS Code
+
+### Remove
+
+- comments about future support for python, csharp and sql
 
 ## [0.2.1] - 2025-03-23
 
