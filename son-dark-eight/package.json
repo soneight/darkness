@@ -3,7 +3,7 @@
   "displayName": "Son Dark Eight",
   "description": "cyan color based dark theme",
   "publisher": "olegease",
-  "version": "0.3.0-dev.1779390313",
+  "version": "0.3.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/soneight/darkness"
@@ -19,7 +19,7 @@
       {
         "label": "Son Dark Eight",
         "uiTheme": "vs-dark",
-        "path": "./themes/Son Dark Eight-color-theme.json"
+        "path": "./themes/Son_Dark_Eight-color-theme.json"
       }
     ]
   },

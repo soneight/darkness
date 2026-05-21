@@ -14,7 +14,7 @@
 
 - White
     - colors: default
-    - tokens: constant values, operators, quoted strings, types, punctuation 
+    - tokens: constant values, operators, quoted strings, types, punctuation
 - Grey
     - colors: disabled elements, line numbers, squigglies, breadcrumbs
     - tokens: comments, invalid, namespace related
@@ -52,6 +52,6 @@
     - `Bold` style for punctuation
 
 - cxx (C/C++)
-    - `keyword.operator` and `storage.modifier` should have same styles for parsing issues with templates 
+    - `keyword.operator` and `storage.modifier` should have same styles because of parsing issues with templates
 
 ###### Color components are only this eight values (in hex): 10 20 40 60 80 A0 C0 E0 (with few exceptions).
