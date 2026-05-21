@@ -6,10 +6,20 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 ## [Unreleased]
 
+- TODO:
+  - change implicit default colors to explicit ones
+  - as for now mostly all colors are in format `X0Y0Z0`, before release such colors can be used as initial value indicator and later should be reviewed and changed to format 'XYZ'  
+- most colors from versions:
+  - `1.49-1.57`
+  - `1.58-1.69`
+  - `1.70-1.77`
+  - `1.78-1.88`
+  - `1.88-1.91`
+- no colors from version 1.92 and above
+
 - tokenColors: language highlighting overhaul for 
     - `as`se`m`bly (x86_64)
     - `c`++
-    - `t`ype`s`cript
     - Web (`html`, `css`, `js`)
 
 ## [0.2.2] - 2025-05-10
@@ -46,7 +56,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 ### Changed
 
-> All changes related to C/C++ support (less colorfull, more white and grey)
+> All changes related to C/C++ support (less colorful, more white and grey)
 
 - global `punctuation` `white` instead of `red` except for `punctuation.definition`
 - namespace related punctuation become `grey` as namespace itself

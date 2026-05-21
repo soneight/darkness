@@ -277,6 +277,20 @@
 		"minimapSlider.activeBackground": "#20606080",
 		"minimapSlider.background": "#20606040",
 		"minimapSlider.hoverBackground": "#20606060",
+		"notebook.focusedCellBackground":"default",
+		"notebook.focusedCellBorder": "default",
+		"notebook.focusedEditorBorder": "default",
+		"notebook.outputContainerBackgroundColor": "default",
+		"notebook.cellBorderColor": "default",
+		"notebook.cellHoverBackground": "default",
+		"notebook.cellInsertionIndicator": "default",
+		"notebook.cellStatusBarItemHoverBackground": "default",
+		"notebookScrollbarSlider.activeBackground": "default",
+		"notebookScrollbarSlider.background": "default",
+		"notebookScrollbarSlider.hoverBackground": "default",
+		"notebookStatusErrorIcon.foreground": "default",
+		"notebookStatusSuccessIcon.foreground":"default",
+		"notebookStatusRunningIcon.foreground":"default",
 		"notificationCenter.border": "#104040",
 		"notificationCenterHeader.background": "#104040",
 		"notificationCenterHeader.foreground": "#E0E0E0",
@@ -490,8 +504,7 @@
 				"variable.other.enummember"
 			],
 			"settings": { "foreground": "#C0C0C0" }
-		},
-		{
+		}, {
 			"name": "Grey",
 			"scope": [
 				"comment",
@@ -503,8 +516,7 @@
 				"punctuation.separator.scope-resolution"
 			],
 			"settings": { "foreground": "#808080" }
-		},
-		{
+		}, {
 			"name": "Cyan",
 			"scope": [
 				"variable",
@@ -515,8 +527,7 @@
 				"entity.other.attribute-name"
 			],
 			"settings": { "foreground": "#80C0C0" }
-		},
-		{
+		}, {
 			"name": "Magenta",
 			"scope": [
 				"string",
@@ -524,16 +535,14 @@
 				"constant.character.escape"
 			],
 			"settings": { "foreground": "#C080C0" }
-		},
-		{
+		}, {
 			"name": "Blue",
 			"scope": [
 				"support",
 				"storage.type.template"
 			],
 			"settings": { "foreground": "#8080C0" }
-		},
-		{
+		}, {
 			"name": "Yellow",
 			"scope": [
 				"entity",
@@ -542,8 +551,7 @@
 				"keyword.other.operator"
 			],
 			"settings": { "foreground": "#C0C080" }
-		},
-		{
+		}, {
 			"name": "Green",
 			"scope": [
 				"storage",
@@ -552,8 +560,7 @@
 				"entity.source.cmake"
 			],
 			"settings": { "foreground": "#80C080" }
-		},
-		{
+		}, {
 			"name": "Red",
 			"scope": [
 				"keyword",
@@ -561,8 +568,7 @@
 				"punctuation.definition"
 			],
 			"settings": { "foreground": "#C08080" }
-		},
-		{
+		}, {
 			"name": "Italic",
 			"scope": [
 				"constant",
@@ -571,16 +577,14 @@
 				"entity.name.function.preprocessor"
 			],
 			"settings": { "fontStyle": "italic" }
-		},
-		{
+		}, {
 			"name": "Bold",
 			"scope": [
 				"punctuation",
 				"variable.language"
 			],
 			"settings": { "fontStyle": "bold" }
-		},
-		{
+		}, {
 			"name": "Strikethrough",
 			"scope": [
 				"punctuation.separator.pointer-access"

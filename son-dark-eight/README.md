@@ -5,9 +5,10 @@
 
 ## Overview
 
+- colors was chosen based on low brightness screen settings
 - Advanced C/C++ support
 - Basic Web support (HTML, CSS, JS)
-- Future support for: assembly (x86_64), TypeScript
+- Future support for: assembly (x86_64)
 
 ## Base colors
 
