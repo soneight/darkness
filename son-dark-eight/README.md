@@ -41,7 +41,7 @@
 
 - Italics: constant values
 - Bold: punctuation, language variables (this, self)
-- Strikethrough: pointer access operator (e.g. `->`)
+- Strike-through: pointer access operator (e.g. `->`)
 
 ## Notes (for future reference)
 

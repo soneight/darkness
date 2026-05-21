@@ -1,7 +1,6 @@
 #ifndef SON8_DARKNESS_NOTDEFINED
 
 #include <cassert>
-#include <cstdio>
 #include <iostream>
 #include <vector>
 #include <utility>
