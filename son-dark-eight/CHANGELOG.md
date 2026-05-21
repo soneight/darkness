@@ -8,7 +8,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 - TODO:
   - change implicit default colors to explicit ones
-  - as for now mostly all colors are in format `X0Y0Z0`, before release such colors can be used as initial value indicator and later should be reviewed and changed to format 'XYZ'  
+  - as for now mostly all colors are in format `X0Y0Z0`, before release such colors can be used as initial value indicator and later should be reviewed and changed to format 'XYZ'
 - most colors from versions:
   - `1.49-1.57`
   - `1.58-1.69`
@@ -17,7 +17,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
   - `1.88-1.91`
 - no colors from version 1.92 and above
 
-- tokenColors: language highlighting overhaul for 
+- tokenColors: language highlighting overhaul for
     - `as`se`m`bly (x86_64)
     - `c`++
     - Web (`html`, `css`, `js`)
@@ -81,7 +81,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 ### Removed
 
-- overuse `bold` style for common scopes  
+- overuse `bold` style for common scopes
 
 ## [0.1.0] - 2025-01-16
 
