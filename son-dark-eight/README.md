@@ -15,6 +15,7 @@
 - most colors added above vscode version 1.48
 - notebook related colors
 - no "default" colors until vscode minimal version requirement is below 1.96
+- outline color options
 
 ## Extensions
 
