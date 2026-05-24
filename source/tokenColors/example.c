@@ -1,6 +1,8 @@
 /* header */
-#ifndef HEADER_GUARD
-#define HEADER_GUARD
+#ifndef HEADER_H
+#define HEADER_H
+
+#define SON8_STRSIZE( str ) ( strlen( str ) + 1 )
 
 #include <stddef.h>
 #include <stdint.h>
@@ -8,22 +10,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct son8_c_string son8_c_string;
+
 struct son8_c_string {
     char *data;
     size_t size;
 };
 
-son8_c_string
+struct son8_c_string
 son8_c_string_new( char const *data );
 void
-son8_c_string_del( son8_c_string *self );
+son8_c_string_del( struct son8_c_string *self );
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif/*HEADER_GUARD*/
+#endif/*HEADER_H*/
 /* source */
 #include <assert.h>
 #include <stdio.h>
@@ -32,8 +34,7 @@ son8_c_string_del( son8_c_string *self );
 
 int main( int argc, char *argv[] )
 {
-    son8_c_string cstr = son8_c_string_new( argv[0] );
-
+    struct son8_c_string cstr = son8_c_string_new( argv[0] );
     printf( "tokenColors %s\n", cstr.data );
 
     son8_c_string_del( &cstr );
@@ -43,17 +44,20 @@ int main( int argc, char *argv[] )
     return EXIT_SUCCESS;
 }
 
-son8_c_string son8_c_string_new( char const *str )
+struct son8_c_string son8_c_string_new( char const *str )
 {
-    son8_c_string cstr = { NULL, strlen(str) + 1 };
+    struct son8_c_string cstr;
 
+    cstr.size = SON8_STRSIZE( str );
     cstr.data = (char *)malloc( cstr.size );
+
     return cstr;
 }
 
-void son8_c_string_del(son8_c_string *cstr)
+void son8_c_string_del( struct son8_c_string *cstr)
 {
     free( cstr->data );
+
     cstr->data = NULL;
     cstr->size = 0;
 }

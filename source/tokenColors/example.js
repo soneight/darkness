@@ -22,11 +22,11 @@ for (let i = 0; i < numbers.length; i++) {
 
 // Conditional statement
 if (add(2, 3) === 5) {
-    console.log('2 + 3 equals 5');
+    console.log(`2 + 3 equals ${2 + 3}`);
 }
 
 // Arrow function
-const multiply = (a, b) => a * b;
+let multiply = (a, b) => a * b;
 
 // Using the arrow function
 console.log('3 * 4 equals ' + multiply(3, 4));

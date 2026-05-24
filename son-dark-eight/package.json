@@ -3,13 +3,13 @@
   "displayName": "Son Dark Eight",
   "description": "cyan color based dark theme",
   "publisher": "olegease",
-  "version": "0.3.0",
+  "version": "0.3.1-dev",
   "repository": {
     "type": "git",
     "url": "https://github.com/soneight/darkness"
   },
   "engines": {
-    "vscode": "^1.88.0"
+    "vscode": "^1.64.0"
   },
   "categories": [
     "Themes"
