@@ -9,20 +9,26 @@
 - Basic Web support (HTML, CSS, JS)
 - Future support for: assembly (x86_64)
 
+## Extensions
+
+Token colors adjustments:
+  - for official vscode `ms` extension pack for C++ is used
+  - for oss vscode version `kylinideteam` extension pack for C++ and `jeff-hykin` better C++ syntax is used
+
 ## Base and Token Colors
 
 - White
     - colors: default
-    - tokens: constant values, operators, quoted strings, types, punctuation
+    - tokens: constant, operators, quoted strings, types, punctuation
 - Grey
     - colors: disabled elements, line numbers, squigglies, breadcrumbs
-    - tokens: comments, invalid, namespace related
+    - tokens: comment, invalid, namespace related
 - Cyan
     - colors: active elements, selection, scrollbars, borders, links, git modified
-    - tokens: variables, html attributes
+    - tokens: variable, html attributes
 - Magenta
     - colors: underused
-    - tokens: not quoted string, other keywords, escape sequences
+    - tokens: string (not quoted), other keywords, escape sequences
 - Blue
     - colors: underused
     - tokens: support, templates
@@ -34,7 +40,7 @@
     - tokens: storage
 - Red
     - colors: error related elements, debug icons
-    - tokens: keywords, html tags
+    - tokens: keyword, html tags
 
 ## Styles
 

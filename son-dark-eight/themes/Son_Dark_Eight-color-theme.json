@@ -519,26 +519,26 @@
 			"name": "White",
 			"scope": [
 				"constant",
-				"punctuation",
-				"string.quoted",
-				"storage.type.js",
 				"entity.name.type",
 				"keyword.operator",
+				"punctuation",
+				"string.quoted",
 				"storage.modifier",
-				"support.constant",
-				"string.source.cmake",
 				"storage.type.built-in",
 				"storage.type.integral",
-				"variable.other.enummember"
+				"storage.type.js",
+				"string.source.cmake",
+				"support.constant",
+				"variable.other"
 			],
 			"settings": { "foreground": "#C0C0C0" }
 		}, {
 			"name": "Grey",
 			"scope": [
 				"comment",
-				"invalid",
 				"entity.name.namespace",
 				"entity.name.scope-resolution",
+				"invalid",
 				"punctuation.definition.comment",
 				"punctuation.separator.namespace",
 				"punctuation.separator.scope-resolution"
@@ -547,52 +547,52 @@
 		}, {
 			"name": "Cyan",
 			"scope": [
-				"variable",
-				"string.other.link",
-				"storage.source.cmake",
-				"markup.underline.link",
 				"constant.other.placeholder",
-				"entity.other.attribute-name"
+				"entity.other.attribute-name",
+				"markup.underline.link",
+				"storage.source.cmake",
+				"string.other.link",
+				"variable"
 			],
 			"settings": { "foreground": "#80C0C0" }
 		}, {
 			"name": "Magenta",
 			"scope": [
-				"string",
+				"constant.character.escape",
 				"keyword.other",
-				"constant.character.escape"
+				"string"
 			],
 			"settings": { "foreground": "#C080C0" }
 		}, {
 			"name": "Blue",
 			"scope": [
-				"support",
-				"storage.type.template"
+				"storage.type.template",
+				"support"
 			],
 			"settings": { "foreground": "#8080C0" }
 		}, {
 			"name": "Yellow",
 			"scope": [
 				"entity",
-				"support.function",
 				"entity.name.function",
-				"keyword.other.operator"
+				"keyword.other.operator",
+				"support.function"
 			],
 			"settings": { "foreground": "#C0C080" }
 		}, {
 			"name": "Green",
 			"scope": [
+				"entity.source.cmake",
 				"storage",
 				"storage.type",
 				"support.type",
-				"entity.source.cmake"
 			],
 			"settings": { "foreground": "#80C080" }
 		}, {
 			"name": "Red",
 			"scope": [
-				"keyword",
 				"entity.name.tag",
+				"keyword",
 				"punctuation.definition"
 			],
 			"settings": { "foreground": "#C08080" }
@@ -600,9 +600,9 @@
 			"name": "Italic",
 			"scope": [
 				"constant",
+				"entity.name.function.preprocessor",
 				"string.quoted",
 				"variable.other.enummember",
-				"entity.name.function.preprocessor"
 			],
 			"settings": { "fontStyle": "italic" }
 		}, {
@@ -613,11 +613,18 @@
 			],
 			"settings": { "fontStyle": "bold" }
 		}, {
-			"name": "Strikethrough",
+			"name": "Boldthrough",
 			"scope": [
 				"punctuation.separator.pointer-access"
 			],
 			"settings": { "fontStyle": "bold strikethrough" }
+		}, {
+			"name": "Undertalic",
+			"scope": [
+				"string.quoted.double.include",
+				"string.quoted.other.lt-gt.include"
+			],
+			"settings": { "fontStyle": "underline italic" }
 		}
 	]
 }
