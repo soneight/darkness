@@ -9,6 +9,12 @@
 - Basic Web support (HTML, CSS, JS)
 - Future support for: assembly (x86_64)
 
+## Not supported (yet?)
+
+- colors added above vscode version 1.92
+- most colors added above vscode version 1.48
+- notebook related colors
+
 ## Extensions
 
 Token colors adjustments:
