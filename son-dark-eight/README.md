@@ -14,6 +14,7 @@
 - colors added above vscode version 1.92
 - most colors added above vscode version 1.48
 - notebook related colors
+- no "default" colors until vscode minimal version requirement is below 1.96
 
 ## Extensions
 
@@ -39,7 +40,7 @@ Token colors adjustments:
     - colors: underused
     - tokens: support, templates
 - Yellow
-    - colors: active line number
+    - colors: active line number, editor cursor
     - tokens: entity, functions, overloaded operators
 - Green
     - colors: git added
