@@ -535,7 +535,8 @@
 				"markup.underline.link",
 				"storage.source.cmake",
 				"string.other.link",
-				"variable"
+				"variable",
+				"variable.other.local"
 			],
 			"settings": { "foreground": "#80C0C0" }
 		}, {
