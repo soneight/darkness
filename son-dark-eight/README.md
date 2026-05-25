@@ -16,6 +16,7 @@
 - notebook related colors
 - no "default" colors until vscode minimal version requirement is below 1.96
 - outline color options
+- chat color options
 
 ## Extensions
 

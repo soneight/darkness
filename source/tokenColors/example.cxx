@@ -100,4 +100,3 @@ int main( int argc, char *argv[] ) try {
     std::cerr << "... unhandled exception" << std::endl;
 }
 #endif//SON8_DARKNESS_NOTDEFINED
-
