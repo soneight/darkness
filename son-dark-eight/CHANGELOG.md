@@ -5,7 +5,7 @@
 
 - TODO:
   - change implicit default colors to explicit ones
-  - as for now mostly all colors are in format `X0Y0Z0`, before release such colors can be used as initial value indicator and later should be reviewed and changed to format 'XYZ'
+  - as for now mostly all colors are in format `X0Y0Z0`, before release such colors can be used as initial value indicator and later should be reviewed and changed to format 'XYZ' (Finalized)
 - most colors from versions:
   - `1.49-1.57`
   - `1.58-1.69`
@@ -19,6 +19,47 @@
     - `c`++
     - Web (`html`, `css`, `js`)
 
+## [0.3.1] - 2026-05-25
+
+### Fixed
+
+- variable token colors (it is messy right now to fix so it is preferably render them as white then falsely apply cyan for anything that parsed as variable-like)
+
+### Finalized
+
+- editor:
+  - background (dark grey) and foreground (white) colors
+  - line highlight background and border (black)
+  - editor cursor foreground (light yellow) and OVR background (dark blue)
+  - editor indent guide background (grey) and active (light grey)
+  - editor line number foreground (light grey) and active (light yellow)
+- git decoration resource
+  - ignored (light grey)
+  - modified (cyan)
+  - staged modified (light blue)
+  - conflicting (yellow)
+  - added (light green)
+  - removed (magenta)
+  - staged removed (light red)
+
+### Added
+
+- extension button colors
+- "Undertalic" (underline italic) token color style for include headers
+
+### Changed
+
+- lower package minimum required vscode version from 1.88 to 1.64
+- debugConsole and debugView colors from default to temporary
+- other default colors to temporary
+
+### Removed
+
+- chat colors
+- outline colors
+- notebook colors
+- profile badge colors
+
 ## [0.3.0] - 2026-05-22
 > first beta-release on open-vsx
 
@@ -26,7 +67,7 @@
 
 - colors for elements prior to version 1.48 of VS Code
 
-### Remove
+### Removed
 
 - comment about future support for `ts`
 
@@ -36,7 +77,7 @@
 
 - few missing theme options prior to version 1.43 of VS Code
 
-### Remove
+### Removed
 
 - comments about future support for python, csharp and sql
 
