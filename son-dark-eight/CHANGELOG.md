@@ -19,6 +19,26 @@
     - `c`++
     - Web (`html`, `css`, `js`)
 
+## [0.3.2] - 2026-05-26
+
+### Finalized
+
+- info (cyan), warning (yellow) and error (magenta) colors for:
+  - editor
+  - marker navigation
+  - overview ruler
+  - minimap
+  - notification and problems icons
+- unstaged/staged added (yellowish/greenish), modified(cyans/bluish), removed(magentas/reddish)  git related colors for:
+  - decoration
+  - gutter
+  - overview ruler
+  - minimap gutter
+
+### Changed
+
+- add comment tokens to italic style
+
 ## [0.3.1] - 2026-05-25
 
 ### Fixed
