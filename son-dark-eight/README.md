@@ -33,16 +33,16 @@ Token colors adjustments:
     - colors: ignored resource, disabled elements, line numbers, squigglies, breadcrumbs
     - tokens: comment and invalid, namespace related
 - Cyan
-    - colors: modified resource, active elements, selection, scrollbars, borders, links
+    - colors: modified resource, info, active elements, selection, scrollbars, borders, links
     - tokens: variable, html attributes
 - Magenta
-    - colors: removed resource
+    - colors: removed resource, error
     - tokens: string (not quoted), other keywords, escape sequences
 - Blue
     - colors: staged modified resource, editor cursor OVR background
     - tokens: support, template typename
 - Yellow
-    - colors: conflicting resource active line number, editor cursor
+    - colors: conflicting resource, warning, active line number, editor cursor
     - tokens: entity, functions, overloaded operators
 - Green
     - colors: added resource
