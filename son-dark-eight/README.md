@@ -27,10 +27,10 @@ Token colors adjustments:
 
 - White
     - colors: default
-    - tokens: constant, operators, quoted strings, types, punctuation
+    - tokens: constant and punctuation, operators, quoted strings, types
 - Grey
     - colors: disabled elements, line numbers, squigglies, breadcrumbs
-    - tokens: comment, invalid, namespace related
+    - tokens: comment and invalid, namespace related
 - Cyan
     - colors: active elements, selection, scrollbars, borders, links, git modified
     - tokens: variable, html attributes
@@ -38,8 +38,8 @@ Token colors adjustments:
     - colors: underused
     - tokens: string (not quoted), other keywords, escape sequences
 - Blue
-    - colors: underused
-    - tokens: support, templates
+    - colors: editor cursor OVR background
+    - tokens: support, template typename
 - Yellow
     - colors: active line number, editor cursor
     - tokens: entity, functions, overloaded operators

@@ -13,7 +13,7 @@ const person = {
 };
 
 // Array of numbers
-const numbers = [1, 2, 3, 4, 5];
+let numbers = [1, 2, 3, 4, 5];
 
 // Loop through the array
 for (let i = 0; i < numbers.length; i++) {

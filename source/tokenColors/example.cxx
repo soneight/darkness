@@ -34,12 +34,19 @@ namespace app {
         Exception( Ptr< char const > msg ) : msg_{ msg } { }
         auto what( ) const noexcept -> ValueType { return msg_; }
     };
+
+    struct Pair final {
+        static constexpr auto first = 1;
+        int second;
+    };
 }
 int main( int argc, char *argv[] ) try {
     if ( argc != 2 ) throw app::Exception{ "app expects exactly one argument" };
     app::swap( argv[0], argv[1] );
     if ( argc and argv[0] )
-    std::cout << argv[0] << std::endl;
+        std::cout << argv[0] << std::endl;
+    app::Pair pair;
+    std::cout << pair.second;
 } catch ( app::Exception::Ref e ) {
     std::cerr << "std::exception: " << e.what( ) << std::endl;
 } catch ( ... ) {
