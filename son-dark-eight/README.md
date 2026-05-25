@@ -29,25 +29,25 @@ Token colors adjustments:
     - colors: default
     - tokens: constant and punctuation, operators, quoted strings, types
 - Grey
-    - colors: disabled elements, line numbers, squigglies, breadcrumbs
+    - colors: ignored resource, disabled elements, line numbers, squigglies, breadcrumbs
     - tokens: comment and invalid, namespace related
 - Cyan
-    - colors: active elements, selection, scrollbars, borders, links, git modified
+    - colors: modified resource, active elements, selection, scrollbars, borders, links
     - tokens: variable, html attributes
 - Magenta
-    - colors: underused
+    - colors: removed resource
     - tokens: string (not quoted), other keywords, escape sequences
 - Blue
-    - colors: editor cursor OVR background
+    - colors: staged modified resource, editor cursor OVR background
     - tokens: support, template typename
 - Yellow
-    - colors: active line number, editor cursor
+    - colors: conflicting resource active line number, editor cursor
     - tokens: entity, functions, overloaded operators
 - Green
-    - colors: git added
+    - colors: added resource
     - tokens: storage
 - Red
-    - colors: error related elements, debug icons
+    - colors: staged removed resource, error related elements, debug icons
     - tokens: keyword, html tags
 
 ## Styles
