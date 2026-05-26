@@ -19,15 +19,17 @@ SON8_EXTERN_CBEG
 
 static char const *NullData = "\0";
 
-struct son8_c_string {
+struct Son8String {
     char *data;
     size_t size;
 };
 
-struct son8_c_string
-son8_c_string_new( char const *str );
+typedef struct Son8String *Son8StringPtr;
+
+struct Son8String
+son8string_new( char const *str );
 void
-son8_c_string_del( struct son8_c_string *self );
+son8string_del( Son8StringPtr self );
 
 SON8_EXTERN_CEND
 #endif/*HEADER_H*/
@@ -39,59 +41,93 @@ SON8_EXTERN_CEND
 #include <stdlib.h>
 #include <string.h>
 
+enum Error {
+    Error_None,
+    Error_Argc,
+    Error_Init,
+    Error_Window,
+    Error_Last_
+};
+
+static char const *Text_Error[Error_Last_] = {
+    "none",
+    "arguments count",
+    "glwf init",
+    "window create",
+};
+
 int
 main( int argc, char *argv[] ) {
+    /* declarations, not mix with code */
     GLFWwindow *window;
-    struct son8_c_string cstr = son8_c_string_new( argv[0] );
-    assert( cstr.data[cstr.size] == '\0' );
-    printf( "tokenColors %s\n", cstr.data );
-    if ( !glfwInit(  ) ) return EXIT_FAILURE;
-
-    window = glfwCreateWindow( 640, 360, cstr.data, NULL, NULL );
-
-    if ( !window ) goto terminate;
+    struct Son8String name;
+    size_t error;
+    /* code */
+    /* checking arguments */
+    error = Error_Argc;
+    if ( argc > 1 ) goto error_argc_;
+    /* initializing GLFW */
+    error = Error_Init;
+    if ( !glfwInit(  ) ) goto error_init_;
+    /* creating window */
+    name = son8string_new( argv[0] );
+    assert( name.data[name.size] == '\0' );
+    window = glfwCreateWindow( 640, 360, name.data, NULL, NULL );
+    error = Error_Window;
+    if ( !window ) goto error_window_;
 
     glfwMakeContextCurrent( window );
 
     while ( !glfwWindowShouldClose( window ) ) {
+        /* NOTE: first GLFW call polling events before rendering */
+        glfwPollEvents( );
+        /* TODO: rewrite using software rendering with only gl call would be DrawPixels */
         glClear( GL_COLOR_BUFFER_BIT );
         glClearColor( .1f, .4f, .4f, 0.f );
+        /* NOTE: second GLFW call swapping buffers after rendering */
         glfwSwapBuffers( window );
-        glfwPollEvents( );
     }
 
-    son8_c_string_del( &cstr );
-    assert( cstr.data == NULL );
-    assert( cstr.size == 0 );
+    error = Error_None;
 
-    return EXIT_SUCCESS;
-
-terminate:
+error_window_:
+    son8string_del( &name );
+    assert( name.data == NULL );
+    assert( name.size == 0 );
+error_init_:
     glfwTerminate( );
-    return EXIT_FAILURE;
+error_argc_:
+    assert( error < Error_Last_ );
+    if ( error != Error_None ) {
+        puts( "error: " );
+        puts( Text_Error[error] );
+        putchar( '\n' );
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 
-struct son8_c_string
-son8_c_string_new( char const *str ) {
-    struct son8_c_string ret;
+struct Son8String
+son8string_new( char const *cstr ) {
+    struct Son8String result;
 
-    ret.size = SON8_CSTRSIZE( str );
-    ret.data = (char *)malloc( ret.size );
+    result.size = SON8_CSTRSIZE( cstr );
+    result.data = (char *)malloc( result.size );
 
-    if ( ret.data == NULL ) {
-        ret.size = 1u;
-        str = NullData;
+    if ( result.data == NULL ) {
+        result.size = 1u;
+        cstr = NullData;
     }
 
-    memcpy( ret.data, str, ret.size );
+    memcpy( result.data, cstr, result.size );
 
-    return ret;
+    return result;
 }
 
 void
-son8_c_string_del( struct son8_c_string *cstr) {
-    free( cstr->data );
+son8string_del( Son8StringPtr strPtr ) {
+    free( strPtr->data );
 
-    cstr->data = NULL;
-    cstr->size = 0;
+    strPtr->data = NULL;
+    strPtr->size = 0;
 }

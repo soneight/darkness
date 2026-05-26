@@ -14,7 +14,7 @@ const App = {
         '.css': 'text/css',
         '.js': 'text/javascript',
     },
-    async validate( q ) {
+    validate( q ) {
         const method = q.method || '';
         if ( method !== 'GET' ) throw 'only get methods allowed';
         const page = q.url == '/' ? 'example.html' : q.url.substring( 1 );
@@ -26,22 +26,23 @@ const App = {
         s.writeHead( 404 );
         s.end( 'Not Found', 'utf-8' );
     },
+    page_path( page ) { return path.join( this.Public_Dir, page ) },
+    async send_response( q, s ) {
+        try {
+            const page = this.validate( q );
+            console.log( q.method + ': ' + q.url );
+            const text = await readFile( this.page_path( page ) );
+            s.writeHead( 200, { 'Content-Type': this.Mime[path.extname( page )] } );
+            s.end( text, 'utf-8' );
+        } catch ( error ) {
+            console.log( error );
+            this.not_found( s );
+            return;
+        };
+    },
 };
 
-const example = createServer( async ( q, s ) => {
-
-    try {
-        const page = await App.validate( q );
-        console.log( q.method + ': ' + q.url );
-        const text = await readFile( path.join( App.Public_Dir, page ) );
-        s.writeHead( 200, { 'Content-Type': App.Mime[path.extname( page )] } );
-        s.end( text, 'utf-8' );
-    } catch ( error ) {
-        console.log( error );
-        App.not_found( s );
-        return;
-    };
-});
+const example = createServer( async ( q, s ) => { await App.send_response( q, s ); } );
 
 example.listen( App.Port, App.Host, ( ) => {
     console.log( 'Public Dir: ' + App.Public_Dir );
