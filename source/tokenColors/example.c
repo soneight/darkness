@@ -55,7 +55,7 @@ main( int argc, char *argv[] ) {
 
     while ( !glfwWindowShouldClose( window ) ) {
         glClear( GL_COLOR_BUFFER_BIT );
-        glClearColor( 0.f, 0.f, 0.f, 0.f );
+        glClearColor( .1f, .4f, .4f, 0.f );
         glfwSwapBuffers( window );
         glfwPollEvents( );
     }

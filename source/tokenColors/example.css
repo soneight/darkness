@@ -1,8 +1,4 @@
-p.hello {
-  color: red !important;
-  border: 8px solid black;
-}
-
-p#p-1 {
-    font-size: 32px;
+body {
+    background-color: #222;
+    color: #CCC;
 }
