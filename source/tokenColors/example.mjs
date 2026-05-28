@@ -14,30 +14,27 @@ const App = {
         '.css': 'text/css',
         '.js': 'text/javascript',
     },
-    validate( q ) {
+    validate( request ) {
+        const q = request;
         const method = q.method || '';
         if ( method !== 'GET' ) throw 'only get methods allowed';
         const page = q.url == '/' ? 'example.html' : q.url.substring( 1 );
         const found = this.Valid_Pages.includes( page );
         if ( !found ) throw 'page: ' + page + ' not found';
+        console.log( q.method + ': ' + q.url );
         return page;
     },
-    not_found( s ) {
-        s.writeHead( 404 );
-        s.end( 'Not Found', 'utf-8' );
-    },
-    page_path( page ) { return path.join( this.Public_Dir, page ) },
-    async send_response( q, s ) {
+    async send_response( request, response ) {
+        const s = response;
         try {
-            const page = this.validate( q );
-            console.log( q.method + ': ' + q.url );
-            const text = await readFile( this.page_path( page ) );
+            const page = this.validate( request );
+            const text = await readFile( path.join( this.Public_Dir, page ) );
             s.writeHead( 200, { 'Content-Type': this.Mime[path.extname( page )] } );
             s.end( text, 'utf-8' );
         } catch ( error ) {
             console.log( error );
-            this.not_found( s );
-            return;
+            s.writeHead( 404 );
+            s.end( 'Not Found', 'utf-8' );
         };
     },
 };
