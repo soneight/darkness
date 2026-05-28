@@ -19,6 +19,12 @@
     - `c`++
     - Web (`html`, `css`, `js`)
 
+## [0.3.3] - 2026-05-28
+
+### Fixed
+
+- missing editor overview ruler changes from settings (less bright colors for added, modified and removed lines)
+
 ## [0.3.2] - 2026-05-26
 
 ### Finalized
