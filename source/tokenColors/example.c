@@ -81,10 +81,12 @@ typedef struct Son8String *Son8StringPtr;
 typedef struct Son8String const *Son8StringRef;
 typedef struct Son8String Son8StringVal; /* copy */
 
+
+#define SON8TEXT_SMALL_SIZE 16
 struct Son8Text {
     union {
         struct {
-            Son8Int0 buf_[16];
+            Son8Int0 buf_[SON8TEXT_SMALL_SIZE];
         } small_;
         struct {
             Son8CStr ptr_;
@@ -98,6 +100,10 @@ struct Son8Text {
 typedef struct Son8Text *Son8TextPtr;
 typedef struct Son8Text Son8TextVal;
 
+Son8Size    son8text_create( Son8TextPtr outPtr, Son8TextVal inVal );
+Son8TextVal son8text_delete( Son8TextVal text );
+Son8TextVal son8text_empty( void );
+Son8Size    son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
 
 Son8StringVal
 son8string_empty( );
@@ -121,6 +127,8 @@ SON8_EXTERN_CEND
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+SON8_EXTERN_CBEG
 
 enum Error {
     Error_None,
@@ -246,3 +254,5 @@ son8string_last( Son8StringVal val ) {
 
     return val.data[val.size - 1u];
 }
+
+SON8_EXTERN_CEND
