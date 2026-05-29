@@ -83,8 +83,8 @@ Son8StringVal
 son8string_empty( );
 Son8StringVal
 son8string_new( Son8CStr str );
-void
-son8string_del( Son8StringPtr ptr );
+Son8StringVal
+son8string_del( Son8StringVal val );
 char
 son8string_last( Son8StringVal val );
 Son8Bool
@@ -121,7 +121,7 @@ int
 main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
     GLFWwindow *window;
-    Son8StringVal name, name2;
+    Son8StringVal name;
     size_t error;
     /* code */
     /* checking arguments */
@@ -152,9 +152,7 @@ main( int argc, char *argv[] ) {
     error = Error_None;
     /* cleaning */
 error_window_:
-    son8string_del( &name );
-    assert( name.data == NULL );
-    assert( name.size == 0 );
+    son8string_del( name );
 error_init_:
     glfwTerminate( );
 error_argc_:
@@ -197,13 +195,10 @@ son8string_new( Son8CStr cstr ) {
     return result;
 }
 
-void
-son8string_del( Son8StringPtr ptr ) {
-    if ( ptr->size >= 2 ) free( ptr->data );
-#ifndef NDEBUG /* only clear in debug builds */
-    ptr->data = NULL;
-    ptr->size = 0u;
-#endif
+Son8StringVal
+son8string_del( Son8StringVal val ) {
+    if ( val.size >= 2 ) free( val.data );
+    return son8string_empty( );
 }
 
 Son8StringVal

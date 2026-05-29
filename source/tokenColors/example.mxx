@@ -1,6 +1,46 @@
+// legacy headers first
+#include <cstdlib>
+#include <GLFW/glfw3.h>
+// modern modules second
 import std;
+// TODO: rewrite using C++23 std::expected for error handling
+class Init final {
+    bool success_;
+public:
+    Init( ) : success_( glfwInit( ) ) { if ( not success_ ) throw "glfwInit failed";  }
+   ~Init( ) { if ( success_ ) glfwTerminate( ); }
+};
 
-int main( ) {
-    std::println( "hello, println!" );
-    std::cout << "hello, cout endl!" << std::endl;
+class Window final {
+    using WindowPtr = GLFWwindow *;
+    WindowPtr window_;
+public:
+    Window( )
+    : window_{ glfwCreateWindow( 640, 360, "glfwCreateWindow", nullptr, nullptr ) } {
+        if ( not window_ ) throw "glwfCreateWindow failed";
+    }
+   ~Window( ) { }
+    operator WindowPtr( ) const { return window_; }
+};
+
+auto main( ) -> int try {
+    Init init;
+    std::println( "glfwInit success" );
+
+    Window window;
+    std::println( "glwfCreateWindow success" );
+
+    glfwMakeContextCurrent( window );
+
+    while ( not glfwWindowShouldClose( window ) ) {
+        glfwPollEvents( );
+    }
+
+    return EXIT_SUCCESS;
+} catch ( char const *msg ) {
+    std::cerr << msg << "\n";
+    return EXIT_FAILURE;
+} catch ( ... ) {
+    std::cerr << "...\n";
+    return EXIT_FAILURE;
 }
