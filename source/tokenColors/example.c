@@ -60,11 +60,13 @@ typedef SON8INT2 Son8Int2;
 typedef SON8UNT2 Son8Unt2;
 typedef SON8INT3 Son8Int3;
 typedef SON8UNT3 Son8Unt3;
-typedef char const *Son8CStr;
+typedef size_t Son8Size;
+typedef char *Son8CStr;
+typedef char const *Son8CCStr;
 
 SON8_EXTERN_CBEG
 
-static Son8CStr NullData = "\0";
+static Son8CCStr NullData = "\0";
 /* NOTE: size includes null terminated character
  * - size 0 : error happened (malloc failed?), points to NullData
  * - size 1 : just empty string, points to NullData
@@ -79,10 +81,28 @@ typedef struct Son8String *Son8StringPtr;
 typedef struct Son8String const *Son8StringRef;
 typedef struct Son8String Son8StringVal; /* copy */
 
+struct Son8Text {
+    union {
+        struct {
+            Son8Int0 buf_[16];
+        } small_;
+        struct {
+            Son8CStr ptr_;
+            Son8Size held_;
+        } large_;
+    } data_;
+    Son8CStr data;
+    Son8Size size;
+};
+
+typedef struct Son8Text *Son8TextPtr;
+typedef struct Son8Text Son8TextVal;
+
+
 Son8StringVal
 son8string_empty( );
 Son8StringVal
-son8string_new( Son8CStr str );
+son8string_new( Son8CCStr str );
 Son8StringVal
 son8string_del( Son8StringVal val );
 char
@@ -110,7 +130,7 @@ enum Error {
     Error_Last_
 };
 
-static Son8CStr Text_Error[Error_Last_] = {
+static Son8CCStr Text_Error[Error_Last_] = {
     "none",
     "arguments count",
     "glwf init",
@@ -181,7 +201,7 @@ son8string_error( ) {
 }
 
 Son8StringVal
-son8string_new( Son8CStr cstr ) {
+son8string_new( Son8CCStr cstr ) {
     Son8StringVal result;
 
     if ( cstr == NULL || cstr[0] == '\0' ) return son8string_empty( );
