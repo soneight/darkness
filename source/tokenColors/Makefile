@@ -2,6 +2,7 @@
 
 BUILD := $(shell pwd)/temp
 SOURCE := $(shell pwd)
+IMPORT_STD := /usr/include/c++/16.1.1/bits/std.cc
 
 usage:
 	echo TODO
@@ -11,7 +12,7 @@ c:
 
 mxx:
 	mkdir -p $(BUILD)
-	cd $(BUILD) && g++ -std=c++23 -fmodules /usr/include/c++/16.1.1/bits/std.cc -x c++ $(SOURCE)/example.mxx -o app
+	cd $(BUILD) && g++ -std=c++23 -fmodules $(IMPORT_STD) -x c++ $(SOURCE)/example.mxx -o app
 
 web:
 	node example.mjs
