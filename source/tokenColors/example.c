@@ -18,7 +18,7 @@
 #include <stdint.h>
 /* fixed integer types */
 /* char */
-#if CHAR_BIT != 8u && UCHAR_MAX != 0xFFu
+#if CHAR_BIT != 8u || UCHAR_MAX != 0xFFu
 #error "1 byte integer is not supported or exotic architecture"
 #else
 #define SON8INT0 signed char
@@ -86,7 +86,7 @@ typedef struct Son8String Son8StringVal; /* copy */
 struct Son8Text {
     union {
         struct {
-            Son8Int0 buf_[SON8TEXT_SMALL_SIZE];
+            char buf_[SON8TEXT_SMALL_SIZE];
         } small_;
         struct {
             Son8CStr ptr_;
@@ -100,7 +100,7 @@ struct Son8Text {
 typedef struct Son8Text *Son8TextPtr;
 typedef struct Son8Text Son8TextVal;
 
-Son8Size    son8text_create( Son8TextPtr outPtr, Son8TextVal inVal );
+Son8Size    son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr );
 Son8TextVal son8text_delete( Son8TextVal text );
 Son8TextVal son8text_empty( void );
 Son8Size    son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
@@ -254,5 +254,50 @@ son8string_last( Son8StringVal val ) {
 
     return val.data[val.size - 1u];
 }
+
+static Son8TextVal Son8Text_Null;
+static Son8TextVal son8text_error( void ) {
+    return Son8Text_Null;
+}
+
+Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
+    Son8Size capacity;
+    if ( ccStr == NULL || ccStr[0] == '\0' ) goto empty_;
+
+    outPtr->size = strlen( ccStr ) + 1;
+
+    if ( outPtr->size > SON8TEXT_SMALL_SIZE ) {
+        outPtr->data_.large_.held_ = outPtr->size << 1u;
+        outPtr->data_.large_.ptr_ = (char *)malloc( outPtr->data_.large_.held_ );
+        if ( outPtr->data_.large_.ptr_ == NULL ) goto error_;
+        outPtr->data = outPtr->data_.large_.ptr_;
+        capacity = outPtr->data_.large_.held_;
+    } else {
+        outPtr->data = outPtr->data_.small_.buf_;
+        capacity = SON8TEXT_SMALL_SIZE;
+    }
+
+    memcpy( outPtr->data, ccStr, outPtr->size );
+    return capacity;
+error_:
+    *outPtr = son8text_error( );
+    return 0u;
+empty_:
+    *outPtr = son8text_empty( );
+    return 1u;
+}
+
+Son8TextVal son8text_delete( Son8TextVal text );
+
+Son8TextVal son8text_empty( void ) {
+    Son8TextVal empty = Son8Text_Null;
+
+    empty.size = 1u;
+    empty.data = Son8Text_Null.data_.small_.buf_;
+
+    return empty;
+}
+
+Son8Size son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
 
 SON8_EXTERN_CEND
