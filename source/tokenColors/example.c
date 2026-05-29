@@ -101,9 +101,10 @@ typedef struct Son8Text *Son8TextPtr;
 typedef struct Son8Text Son8TextVal;
 
 Son8Size    son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr );
-Son8TextVal son8text_delete( Son8TextVal text );
+Son8TextVal son8text_delete( Son8TextVal val );
 Son8TextVal son8text_empty( void );
 Son8Size    son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
+Son8Bool    son8text_valid( Son8TextVal val );
 
 Son8StringVal
 son8string_empty( );
@@ -256,12 +257,12 @@ son8string_last( Son8StringVal val ) {
 }
 
 static Son8TextVal Son8Text_Null;
-static Son8TextVal son8text_error( void ) {
-    return Son8Text_Null;
-}
+static Son8TextVal son8text_error( void )
+{ return Son8Text_Null; }
 
 Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
     Son8Size capacity;
+
     if ( ccStr == NULL || ccStr[0] == '\0' ) goto empty_;
 
     outPtr->size = strlen( ccStr ) + 1;
@@ -269,7 +270,9 @@ Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
     if ( outPtr->size > SON8TEXT_SMALL_SIZE ) {
         outPtr->data_.large_.held_ = outPtr->size << 1u;
         outPtr->data_.large_.ptr_ = (char *)malloc( outPtr->data_.large_.held_ );
+
         if ( outPtr->data_.large_.ptr_ == NULL ) goto error_;
+
         outPtr->data = outPtr->data_.large_.ptr_;
         capacity = outPtr->data_.large_.held_;
     } else {
@@ -287,7 +290,12 @@ empty_:
     return 1u;
 }
 
-Son8TextVal son8text_delete( Son8TextVal text );
+Son8TextVal son8text_delete( Son8TextVal val ) {
+
+    if ( val.size > SON8TEXT_SMALL_SIZE ) free( val.data );
+
+    return son8text_error( );
+}
 
 Son8TextVal son8text_empty( void ) {
     Son8TextVal empty = Son8Text_Null;
@@ -297,7 +305,32 @@ Son8TextVal son8text_empty( void ) {
 
     return empty;
 }
+/* NOTE: on copy allocate upto size, not capacity(held_) */
+Son8Size son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal ) {
+    Son8Size capacity;
+    if ( inVal.data == NULL ) goto error_;
 
-Son8Size son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
+    if ( inVal.size > SON8TEXT_SMALL_SIZE ) {
+        outPtr->data_.large_.ptr_ = (Son8CStr)malloc( inVal.size );
+
+        if ( outPtr->data_.large_.ptr_ == NULL ) goto error_;
+
+        outPtr->data_.large_.held_ = inVal.size;
+        outPtr->data = outPtr->data_.large_.ptr_;
+        capacity = outPtr->data_.large_.held_;
+    } else {
+        outPtr->data = outPtr->data_.small_.buf_;
+        capacity = SON8TEXT_SMALL_SIZE;
+    }
+    outPtr->size = inVal.size;
+    memcpy( outPtr->data, inVal.data, outPtr->size );
+    return capacity;
+error_:
+    *outPtr = son8text_error( );
+    return 0u;
+}
+
+Son8Bool    son8text_valid( Son8TextVal val )
+{ return val.data != NULL && val.size != 0u; }
 
 SON8_EXTERN_CEND
