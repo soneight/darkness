@@ -66,23 +66,8 @@ typedef char const *Son8CCStr;
 
 SON8_EXTERN_CBEG
 
-static Son8CCStr NullData = "\0";
-/* NOTE: size includes null terminated character
- * - size 0 : error happened (malloc failed?), points to NullData
- * - size 1 : just empty string, points to NullData
- * - size 2+: heap allocated string
- */
-struct Son8String {
-    char *data;
-    size_t size;
-};
-
-typedef struct Son8String *Son8StringPtr;
-typedef struct Son8String const *Son8StringRef;
-typedef struct Son8String Son8StringVal; /* copy */
-
-
 #define SON8TEXT_SMALL_SIZE 16
+/* NOTE: size includes null terminated character */
 struct Son8Text {
     union {
         struct {
@@ -105,19 +90,6 @@ Son8TextVal son8text_delete( Son8TextVal val );
 Son8TextVal son8text_empty( void );
 Son8Size    son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
 Son8Bool    son8text_valid( Son8TextVal val );
-
-Son8StringVal
-son8string_empty( );
-Son8StringVal
-son8string_new( Son8CCStr str );
-Son8StringVal
-son8string_del( Son8StringVal val );
-char
-son8string_last( Son8StringVal val );
-Son8Bool
-son8string_valid( Son8StringVal val );
-Son8StringVal
-son8string_copy( Son8StringVal val );
 
 SON8_EXTERN_CEND
 #endif/*HEADER_H*/
@@ -150,7 +122,7 @@ int
 main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
     GLFWwindow *window;
-    Son8StringVal name;
+    Son8TextVal name;
     size_t error;
     /* code */
     /* checking arguments */
@@ -159,13 +131,14 @@ main( int argc, char *argv[] ) {
     /* initializing GLFW */
     error = Error_Init;
     if ( !glfwInit(  ) ) goto error_init_;
+    puts( "glfwInit success" );
     /* creating window */
-    name = son8string_new( argv[0] );
-    assert( son8string_last( name ) == '\0' );
+    son8text_create( &name, argv[0] );
+    puts( name.data );
     window = glfwCreateWindow( 640, 360, name.data, NULL, NULL );
     error = Error_Window;
     if ( !window ) goto error_window_;
-
+    puts( "glfwCreateWindow success" );
     glfwMakeContextCurrent( window );
 
     while ( !glfwWindowShouldClose( window ) ) {
@@ -181,7 +154,8 @@ main( int argc, char *argv[] ) {
     error = Error_None;
     /* cleaning */
 error_window_:
-    son8string_del( name );
+    name = son8text_delete( name );
+    assert( son8text_valid( name ) == 0u );
 error_init_:
     glfwTerminate( );
 error_argc_:
@@ -191,69 +165,6 @@ error_argc_:
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
-}
-
-Son8StringVal
-son8string_empty( ) {
-    Son8StringVal empty;
-    empty.data =  (char *)NullData;
-    empty.size = 1u;
-    return empty;
-}
-
-Son8StringVal
-son8string_error( ) {
-    Son8StringVal error;
-    error.data =  (char *)NullData;
-    error.size = 0u;
-    return error;
-}
-
-Son8StringVal
-son8string_new( Son8CCStr cstr ) {
-    Son8StringVal result;
-
-    if ( cstr == NULL || cstr[0] == '\0' ) return son8string_empty( );
-
-    result.size = SON8_CSTRSIZE( cstr );
-    result.data = (char *)malloc( result.size );
-
-    if ( result.data == NULL ) return son8string_error( );
-
-    memcpy( result.data, cstr, result.size );
-    return result;
-}
-
-Son8StringVal
-son8string_del( Son8StringVal val ) {
-    if ( val.size >= 2 ) free( val.data );
-    return son8string_empty( );
-}
-
-Son8StringVal
-son8string_copy( Son8StringVal val ) {
-    Son8StringVal copy;
-
-    if ( val.size <= 1u ) return val;
-
-    copy.size = val.size;
-    copy.data = (char *)malloc( copy.size );
-
-    if ( copy.data == NULL ) return son8string_error( );
-
-    memcpy( copy.data, val.data, val.size );
-    return copy;
-}
-
-Son8Bool
-son8string_valid( Son8StringVal val )
-{ return val.data != NULL && val.size != 0u; }
-
-char
-son8string_last( Son8StringVal val ) {
-    assert( son8string_valid( val ) );
-
-    return val.data[val.size - 1u];
 }
 
 static Son8TextVal Son8Text_Null;
