@@ -257,13 +257,22 @@ son8string_last( Son8StringVal val ) {
 }
 
 static Son8TextVal Son8Text_Null;
-static Son8TextVal son8text_error( void )
+static Son8TextVal son8text_Error( void )
 { return Son8Text_Null; }
+static Son8Size son8text_Error_Size( Son8TextPtr outPtr ) {
+    *outPtr = Son8Text_Null;
+    return outPtr->size;
+}
+static Son8Size son8text_Empty_Size( Son8TextPtr outPtr ) {
+    *outPtr = son8text_empty( );
+    return outPtr->size;
+}
+
 
 Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
     Son8Size capacity;
 
-    if ( ccStr == NULL || ccStr[0] == '\0' ) goto empty_;
+    if ( ccStr == NULL || ccStr[0] == '\0' ) return son8text_Empty_Size( outPtr );
 
     outPtr->size = strlen( ccStr ) + 1;
 
@@ -271,7 +280,7 @@ Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
         outPtr->data_.large_.held_ = outPtr->size << 1u;
         outPtr->data_.large_.ptr_ = (char *)malloc( outPtr->data_.large_.held_ );
 
-        if ( outPtr->data_.large_.ptr_ == NULL ) goto error_;
+        if ( outPtr->data_.large_.ptr_ == NULL ) return son8text_Error_Size( outPtr );
 
         outPtr->data = outPtr->data_.large_.ptr_;
         capacity = outPtr->data_.large_.held_;
@@ -282,19 +291,13 @@ Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
 
     memcpy( outPtr->data, ccStr, outPtr->size );
     return capacity;
-error_:
-    *outPtr = son8text_error( );
-    return 0u;
-empty_:
-    *outPtr = son8text_empty( );
-    return 1u;
 }
 
 Son8TextVal son8text_delete( Son8TextVal val ) {
 
     if ( val.size > SON8TEXT_SMALL_SIZE ) free( val.data );
 
-    return son8text_error( );
+    return son8text_Error( );
 }
 
 Son8TextVal son8text_empty( void ) {
@@ -326,8 +329,7 @@ Son8Size son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal ) {
     memcpy( outPtr->data, inVal.data, outPtr->size );
     return capacity;
 error_:
-    *outPtr = son8text_error( );
-    return 0u;
+    return son8text_Error_Size( outPtr );
 }
 
 Son8Bool    son8text_valid( Son8TextVal val )
