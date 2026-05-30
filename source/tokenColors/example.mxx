@@ -23,7 +23,7 @@ public:
     operator WindowPtr( ) const { return window_; }
 };
 
-auto main( ) -> int try {
+auto main( int argc, char *argv[] ) -> int try {
     Init init;
     std::println( "glfwInit success" );
 

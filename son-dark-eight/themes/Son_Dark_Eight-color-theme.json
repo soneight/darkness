@@ -1,5 +1,156 @@
 {
 	"name": "Son Dark Eight",
+	"semanticHighlighting": true,
+	"semanticTokenColors": {
+		// Grey
+		"comment": "#808080",
+		"namespace": "#808080",
+		// White
+		"class": "#C0C0C0",
+		"enum": "#C0C0C0",
+		"enumMember": "#C0C0C0",
+		"number": "#C0C0C0",
+		"operator": "#C0C0C0",
+		"string": "#C0C0C0",
+		"struct": "#C0C0C0",
+		"type": "#C0C0C0",
+		"typeParameter": "#C0C0C0",
+		"variable.readonly": "#C0C0C0",
+		// Blue
+		"decorator": "#8080C0",
+		// Yellow
+		"function": "#C0C080",
+		"macro": "#C0C080",
+		"method": "#C0C080",
+		// Green
+		"interface": "#80C080",
+		// Magenta
+		"event": "#C080C0",
+		"regexp": "#C080C0",
+		// Cyan
+		"property": "#80C0C0",
+		"parameter": "#80C0C0",
+		"variable": "#80C0C0",
+		// Red
+		"keyword": "#C08080"
+	},
+	"tokenColors": [
+		{
+			"name": "Grey",
+			"scope": [
+				"comment",
+				"entity.name.namespace",
+				"entity.name.scope-resolution",
+				"invalid",
+				"punctuation.definition.comment",
+				"punctuation.separator.namespace",
+				"punctuation.separator.scope-resolution"
+			],
+			"settings": { "foreground": "#808080" }
+		}, {
+			"name": "White",
+			"scope": [
+				"constant",
+				"entity.name.type",
+				"keyword.operator",
+				"punctuation",
+				"string.quoted",
+				"storage.modifier",
+				"storage.type.built-in",
+				"storage.type.integral",
+				"storage.type.js",
+				"string.source.cmake",
+				"support.constant",
+				"variable.other"
+			],
+			"settings": { "foreground": "#C0C0C0" }
+		}, {
+			"name": "Blue",
+			"scope": [
+				"storage.type.template",
+				"support"
+			],
+			"settings": { "foreground": "#8080C0" }
+		}, {
+			"name": "Yellow",
+			"scope": [
+				"entity",
+				"entity.name.function",
+				"keyword.other.operator",
+				"support.function"
+			],
+			"settings": { "foreground": "#C0C080" }
+		}, {
+			"name": "Green",
+			"scope": [
+				"entity.source.cmake",
+				"storage",
+				"storage.type",
+				"support.type"
+			],
+			"settings": { "foreground": "#80C080" }
+		}, {
+			"name": "Magenta",
+			"scope": [
+				"constant.character.escape",
+				"keyword.other",
+				"string"
+			],
+			"settings": { "foreground": "#C080C0" }
+		}, {
+			"name": "Cyan",
+			"scope": [
+				"constant.other.placeholder",
+				"entity.other.attribute-name",
+				"markup.underline.link",
+				"storage.source.cmake",
+				"string.other.link",
+				"variable",
+				"variable.other.declare",
+				"variable.other.local",
+				"variable.other.readwrite"
+			],
+			"settings": { "foreground": "#80C0C0" }
+		}, {
+			"name": "Red",
+			"scope": [
+				"entity.name.tag",
+				"keyword",
+				"punctuation.definition"
+			],
+			"settings": { "foreground": "#C08080" }
+		}, {
+			"name": "Italic",
+			"scope": [
+				"comment",
+				"constant",
+				"entity.name.function.preprocessor",
+				"string.quoted",
+				"variable.other.enummember"
+			],
+			"settings": { "fontStyle": "italic" }
+		}, {
+			"name": "Bold",
+			"scope": [
+				"punctuation",
+				"variable.language"
+			],
+			"settings": { "fontStyle": "bold" }
+		}, {
+			"name": "Boldthrough",
+			"scope": [
+				"punctuation.separator.pointer-access"
+			],
+			"settings": { "fontStyle": "bold strikethrough" }
+		}, {
+			"name": "Undertalic",
+			"scope": [
+				"string.quoted.double.include",
+				"string.quoted.other.lt-gt.include",
+			],
+			"settings": { "fontStyle": "underline italic" }
+		}
+	],
 	"colors": {
 		"actionBar.toggledBackground": "#206060",
 		"activityBar.activeBackground": "#206060",
@@ -497,122 +648,5 @@
 		"widget.border": "#206060",
 		"widget.shadow": "#206060",
 		"window.inactiveBorder": "#202020"
-	},
-	"tokenColors": [
-		{
-			"name": "White",
-			"scope": [
-				"constant",
-				"entity.name.type",
-				"keyword.operator",
-				"punctuation",
-				"string.quoted",
-				"storage.modifier",
-				"storage.type.built-in",
-				"storage.type.integral",
-				"storage.type.js",
-				"string.source.cmake",
-				"support.constant",
-				"variable.other"
-			],
-			"settings": { "foreground": "#C0C0C0" }
-		}, {
-			"name": "Grey",
-			"scope": [
-				"comment",
-				"entity.name.namespace",
-				"entity.name.scope-resolution",
-				"invalid",
-				"punctuation.definition.comment",
-				"punctuation.separator.namespace",
-				"punctuation.separator.scope-resolution"
-			],
-			"settings": { "foreground": "#808080" }
-		}, {
-			"name": "Cyan",
-			"scope": [
-				"constant.other.placeholder",
-				"entity.other.attribute-name",
-				"markup.underline.link",
-				"storage.source.cmake",
-				"string.other.link",
-				"variable",
-				"variable.other.declare",
-				"variable.other.local",
-				"variable.other.readwrite"
-			],
-			"settings": { "foreground": "#80C0C0" }
-		}, {
-			"name": "Magenta",
-			"scope": [
-				"constant.character.escape",
-				"keyword.other",
-				"string"
-			],
-			"settings": { "foreground": "#C080C0" }
-		}, {
-			"name": "Blue",
-			"scope": [
-				"storage.type.template",
-				"support"
-			],
-			"settings": { "foreground": "#8080C0" }
-		}, {
-			"name": "Yellow",
-			"scope": [
-				"entity",
-				"entity.name.function",
-				"keyword.other.operator",
-				"support.function"
-			],
-			"settings": { "foreground": "#C0C080" }
-		}, {
-			"name": "Green",
-			"scope": [
-				"entity.source.cmake",
-				"storage",
-				"storage.type",
-				"support.type"
-			],
-			"settings": { "foreground": "#80C080" }
-		}, {
-			"name": "Red",
-			"scope": [
-				"entity.name.tag",
-				"keyword",
-				"punctuation.definition"
-			],
-			"settings": { "foreground": "#C08080" }
-		}, {
-			"name": "Italic",
-			"scope": [
-				"comment",
-				"constant",
-				"entity.name.function.preprocessor",
-				"string.quoted",
-				"variable.other.enummember"
-			],
-			"settings": { "fontStyle": "italic" }
-		}, {
-			"name": "Bold",
-			"scope": [
-				"punctuation",
-				"variable.language"
-			],
-			"settings": { "fontStyle": "bold" }
-		}, {
-			"name": "Boldthrough",
-			"scope": [
-				"punctuation.separator.pointer-access"
-			],
-			"settings": { "fontStyle": "bold strikethrough" }
-		}, {
-			"name": "Undertalic",
-			"scope": [
-				"string.quoted.double.include",
-				"string.quoted.other.lt-gt.include",
-			],
-			"settings": { "fontStyle": "underline italic" }
-		}
-	]
+	}
 }
