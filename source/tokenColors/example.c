@@ -2,9 +2,9 @@
 /* header */
 #ifndef HEADER_H
 #define HEADER_H
-/* macros */
+/* -- macros */
 #define SON8_CSTRSIZE( str ) ( strlen( str ) + 1 )
-/* -- extern c */
+/* ---- extern c */
 #ifdef __cplusplus
 #define SON8_EXTERN_CBEG extern "C" {
 #define SON8_EXTERN_CEND }
@@ -12,12 +12,12 @@
 #define SON8_EXTERN_CBEG
 #define SON8_EXTERN_CEND
 #endif/* extern c */
-/* includes */
+/* -- includes */
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
-/* fixed integer types */
-/* char */
+/* -- fixed integer types */
+/* ---- char */
 #if CHAR_BIT != 8u || UCHAR_MAX != 0xFFu
 #error "1 byte integer is not supported or exotic architecture"
 #else
@@ -25,7 +25,7 @@
 #define SON8UNT0 unsigned char
 #define SON8CHAR unsigned char
 #endif
-/* short */
+/* ---- short */
 #if USHRT_MAX == 0xFFFFu
 #define SON8INT1 signed short
 #define SON8UNT1 unsigned short
@@ -35,21 +35,21 @@
 #else
 #error "2 byte integer is not supported or TODO platform specific integer definition"
 #endif
-/* int */
+/* ---- int */
 #if UINT_MAX == 0xFFFFFFFFu
 #define SON8INT2 signed int
 #define SON8UNT2 unsigned int
 #else
 #error "4 byte integer is not supported or TODO platform specific integer definition"
 #endif
-/* long */
+/* ---- long */
 #if ULONG_MAX <= 0xFFFFFFFFul
 #error "8 byte integer is not supported or TODO platform specific integer definition"
 #else
 #define SON8INT3 signed long
 #define SON8UNT3 unsigned long
 #endif
-
+/* -- aliases */
 typedef unsigned Son8Bool;
 typedef SON8CHAR Son8Char;
 typedef SON8INT0 Son8Int0;
@@ -118,26 +118,22 @@ static Son8CCStr Text_Error[Error_Last_] = {
     "window create",
 };
 
-int
-main( int argc, char *argv[] ) {
+int main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
     GLFWwindow *window;
     Son8TextVal name;
-    size_t error;
     /* code */
+    Son8Size error = Error_None;
     /* checking arguments */
-    error = Error_Argc;
-    if ( argc > 1 ) goto error_argc_;
+    if ( argc > 1 && ( error = Error_Argc ) ) goto error_argc_;
     /* initializing GLFW */
-    error = Error_Init;
-    if ( !glfwInit(  ) ) goto error_init_;
+    if ( !glfwInit(  ) && ( error = Error_Init ) ) goto error_init_;
     puts( "glfwInit success" );
     /* creating window */
     son8text_create( &name, argv[0] );
     puts( name.data );
     window = glfwCreateWindow( 640, 360, name.data, NULL, NULL );
-    error = Error_Window;
-    if ( !window ) goto error_window_;
+    if ( !window && ( error = Error_Window ) ) goto error_window_;
     puts( "glfwCreateWindow success" );
     glfwMakeContextCurrent( window );
 
@@ -150,8 +146,6 @@ main( int argc, char *argv[] ) {
         /* NOTE: second GLFW call swapping buffers after rendering */
         glfwSwapBuffers( window );
     }
-
-    error = Error_None;
     /* cleaning */
 error_window_:
     name = son8text_delete( name );
@@ -166,7 +160,7 @@ error_argc_:
     }
     return EXIT_SUCCESS;
 }
-
+/* -- static */
 static Son8TextVal Son8Text_Null;
 static Son8TextVal son8text_Error( void )
 { return Son8Text_Null; }
@@ -178,17 +172,22 @@ static Son8Size son8text_Empty_Size( Son8TextPtr outPtr ) {
     *outPtr = son8text_empty( );
     return outPtr->size;
 }
-
-
+static Son8Size son8text_Expand_Held( Son8Size size ) {
+    Son8Unt0 shift = SON8TEXT_SMALL_SIZE >> 4u;
+    return ( size >> shift ) << ( shift + 1u );
+}
+/* -- definitions */
 Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
     Son8Size capacity;
 
-    if ( ccStr == NULL || ccStr[0] == '\0' ) return son8text_Empty_Size( outPtr );
+    assert( ccStr != NULL );
+
+    if ( ccStr[0] == '\0' ) return son8text_Empty_Size( outPtr );
 
     outPtr->size = strlen( ccStr ) + 1;
 
     if ( outPtr->size > SON8TEXT_SMALL_SIZE ) {
-        outPtr->data_.large_.held_ = outPtr->size << 1u;
+        outPtr->data_.large_.held_ = son8text_Expand_Held( outPtr->size );
         outPtr->data_.large_.ptr_ = (char *)malloc( outPtr->data_.large_.held_ );
 
         if ( outPtr->data_.large_.ptr_ == NULL ) return son8text_Error_Size( outPtr );
@@ -243,7 +242,7 @@ error_:
     return son8text_Error_Size( outPtr );
 }
 
-Son8Bool    son8text_valid( Son8TextVal val )
+Son8Bool son8text_valid( Son8TextVal val )
 { return val.data != NULL && val.size != 0u; }
 
 SON8_EXTERN_CEND

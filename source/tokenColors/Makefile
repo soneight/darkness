@@ -35,7 +35,7 @@ $(C_TARGET): $(C_OBJECT)
 # -- object
 $(C_OBJECT): $(C_SOURCE)
 	@mkdir -p $(BUILDS)
-	gcc -std=c90 -pedantic-errors -Werror -Wall -Wextra -c $(C_SOURCE) -o $(C_OBJECT)
+	gcc -std=c11 -pedantic-errors -Werror -Wall -Wextra -c $(C_SOURCE) -o $(C_OBJECT)
 # mxx example related targets
 # -- run
 run-mxx: $(MXX_TARGET)
