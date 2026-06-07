@@ -44,7 +44,7 @@ run-mxx: $(MXX_TARGET)
 mxx: $(MXX_TARGET)
 # -- link executable
 $(MXX_TARGET): $(MXX_OBJECT)
-	g++ -lglfw -lvulkan $(MXX_OBJECT) -o $(MXX_TARGET)
+	g++ -lSDL3 -lvulkan $(MXX_OBJECT) -o $(MXX_TARGET)
 # -- compile object file
 $(MXX_OBJECT): $(MXX_SOURCE) $(MXX_IMPOBJ)
 	cd $(BUILDS) && g++ -std=c++23 -fmodules -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)

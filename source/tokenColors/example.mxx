@@ -1,45 +1,39 @@
 // legacy headers first
+// -- sdl
+#include <SDL3/SDL.h>
+// -- std
 #include <cstdlib>
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 // modern modules second
 import std;
 // TODO: rewrite using C++23 std::expected for error handling
-// \ and using sdl3 instead of glfw for vulkan application example
-class Init final {
-    bool success_;
-public:
-    Init( ) : success_( glfwInit( ) ) { if ( not success_ ) throw "glfwInit failed";  }
-   ~Init( ) { if ( success_ ) glfwTerminate( ); }
-};
-
-class Window final {
-    using WindowPtr = GLFWwindow *;
-    WindowPtr window_;
-public:
-    Window( ) {
-        glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
-        window_ = glfwCreateWindow( 640, 360, "glfwCreateWindow", nullptr, nullptr );
-        if ( not window_ ) throw "glwfCreateWindow failed";
-    }
-   ~Window( ) { }
-    operator WindowPtr( ) const { return window_; }
-};
 
 auto main( int argc, char *argv[] ) -> int try {
-    Init init;
-    std::println( "glfwInit success" );
-
-    Window window;
-    std::println( "glwfCreateWindow success" );
-
-    // glfwMakeContextCurrent( window );
-
-    if ( not glfwVulkanSupported( ) ) throw "glfwVulkanSupported failed";
-
-    while ( not glfwWindowShouldClose( window ) ) {
-        glfwPollEvents( );
+    if ( not SDL_Init( SDL_INIT_VIDEO ) ) {
+        SDL_Log( "SDL_Init failed: %s", SDL_GetError( ) );
+        return EXIT_FAILURE;
     }
+
+    auto window = SDL_CreateWindow("Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
+
+    if ( not window ) {
+        SDL_Log( "SDL_CreateWindow failed: %s", SDL_GetError( ) );
+        SDL_Quit( );
+        return EXIT_FAILURE;
+    }
+
+    bool running = true;
+    SDL_Event event;
+
+    while ( running ) {
+        while ( SDL_PollEvent( &event ) ) {
+            if ( event.type == SDL_EVENT_QUIT ) running = false;
+        }
+
+        SDL_Delay(20);
+    }
+
+    SDL_DestroyWindow( window );
+    SDL_Quit( );
 
     return EXIT_SUCCESS;
 } catch ( char const *msg ) {
