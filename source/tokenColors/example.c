@@ -94,6 +94,7 @@ Son8Bool    son8text_valid( Son8TextVal val );
 SON8_EXTERN_CEND
 #endif/*HEADER_H*/
 /* source */
+/* TODO: rewrite using X11 directly */
 #include <GLFW/glfw3.h>
 
 #include <assert.h>

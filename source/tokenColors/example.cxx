@@ -20,6 +20,7 @@ namespace son8::darkness {
 
 #endif//HEADER_HXX
 // source
+// TODO: add graphics using glfw with modern OpenGL
 #include <exception>
 #include <iostream>
 namespace app {

@@ -1,4 +1,4 @@
-.PHONY: usage c run-c mxx clean web
+.PHONY: usage c run-c mxx run-mxx clean run-web
 # variables
 BUILDS := $(shell pwd)/temp
 SOURCE := $(shell pwd)
@@ -22,7 +22,7 @@ usage:
 	@echo -e "\tmxx       : compile mxx example"
 	@echo -e "\trun-mxx   : run mxx example"
 	@echo -e "\tclean     : remove temporary directory"
-	@echo -e "\tweb       : run nodejs example"
+	@echo -e "\trun-web   : run nodejs example"
 # c example related targets
 # -- run
 run-c: $(C_TARGET)
@@ -44,7 +44,7 @@ run-mxx: $(MXX_TARGET)
 mxx: $(MXX_TARGET)
 # -- link executable
 $(MXX_TARGET): $(MXX_OBJECT)
-	g++ -lglfw $(MXX_OBJECT) -o $(MXX_TARGET)
+	g++ -lglfw -lvulkan $(MXX_OBJECT) -o $(MXX_TARGET)
 # -- compile object file
 $(MXX_OBJECT): $(MXX_SOURCE) $(MXX_IMPOBJ)
 	cd $(BUILDS) && g++ -std=c++23 -fmodules -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)
@@ -56,5 +56,5 @@ $(MXX_IMPOBJ): $(MXX_IMPORT)
 clean:
 	@rm -rf temp/
 # web related targets
-web:
+run-web:
 	node example.mjs

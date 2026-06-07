@@ -1,9 +1,11 @@
 // legacy headers first
 #include <cstdlib>
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 // modern modules second
 import std;
 // TODO: rewrite using C++23 std::expected for error handling
+// \ and using sdl3 instead of glfw for vulkan application example
 class Init final {
     bool success_;
 public:
@@ -15,8 +17,9 @@ class Window final {
     using WindowPtr = GLFWwindow *;
     WindowPtr window_;
 public:
-    Window( )
-    : window_{ glfwCreateWindow( 640, 360, "glfwCreateWindow", nullptr, nullptr ) } {
+    Window( ) {
+        glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
+        window_ = glfwCreateWindow( 640, 360, "glfwCreateWindow", nullptr, nullptr );
         if ( not window_ ) throw "glwfCreateWindow failed";
     }
    ~Window( ) { }
@@ -30,7 +33,9 @@ auto main( int argc, char *argv[] ) -> int try {
     Window window;
     std::println( "glwfCreateWindow success" );
 
-    glfwMakeContextCurrent( window );
+    // glfwMakeContextCurrent( window );
+
+    if ( not glfwVulkanSupported( ) ) throw "glfwVulkanSupported failed";
 
     while ( not glfwWindowShouldClose( window ) ) {
         glfwPollEvents( );
