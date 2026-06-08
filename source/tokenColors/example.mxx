@@ -38,6 +38,7 @@ namespace app {
 
     struct DataSDL {
         SDL_Window *window;
+        bool isInit;
     };
 
     struct DataVK {
@@ -65,21 +66,28 @@ namespace app {
     void init_vk( SDL_Window *window );
     void free_vk( );
     void draw_vk( );
+
+    struct Free {
+       ~Free( ) {
+            free_vk( );
+            free_sdl( );
+        }
+    };
 }
 
 #define CHECK_VK( res ) if ( res != VK_SUCCESS ) { \
     std::println( "Vulkan Error: {}", static_cast< unsigned >( res ) );\
-    app::free_vk( );\
+    app::Free app_;\
     std::exit( EXIT_FAILURE );\
 }
 
 auto main( int argc, char *argv[] ) -> int try {
+    app::Free app_;
     using app::String;
     app::Global_SDL.window = app::init_sdl( )
     .and_then( []( ) -> app::ExpectWindow {
         auto window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
         if ( window ) return window;
-        SDL_Quit( );
         return std::unexpected{ "SDL_CreateWindow failed" };
     })
     .transform( []( SDL_Window *window ) {
@@ -102,9 +110,6 @@ auto main( int argc, char *argv[] ) -> int try {
         SDL_Delay( 20 );
     }
 
-    app::free_vk( );
-    app::free_sdl( );
-
     return EXIT_SUCCESS;
 } catch ( app::StringView msg ) {
     std::cerr << msg << "\n";
@@ -116,13 +121,16 @@ auto main( int argc, char *argv[] ) -> int try {
 // definitions
 namespace app {
     auto init_sdl( ) -> ExpectVoid {
+        auto &sdlWrite = Global_SDL;
         if ( not SDL_Init( SDL_INIT_VIDEO ) ) return std::unexpected{ "SDL_Init failed"s };
+        sdlWrite.isInit = true;
         return { };
     }
 
     void free_sdl( ) {
-        if ( Global_SDL.window ) SDL_DestroyWindow( Global_SDL.window );
-        SDL_Quit( );
+        auto &sdl = Global_SDL;
+        if ( sdl.window ) SDL_DestroyWindow( sdl.window );
+        if ( sdl.isInit ) SDL_Quit( );
     }
 
     void init_vk( SDL_Window *window ) {
@@ -157,7 +165,7 @@ namespace app {
         // surface
         if ( not SDL_Vulkan_CreateSurface( window, vk.instance, nullptr, &vkWrite.surface) ) {
             std::println( "SDL_Vulkan_CreateSurface failed: {}", SDL_GetError( ) );
-            free_vk( );
+            app::Free app_;
             std::exit( EXIT_FAILURE );
         }
         // device
@@ -167,7 +175,6 @@ namespace app {
         std::println( "devices count: {}", deviceCount );
         Flat< VkPhysicalDevice, 1 > devices;
         deviceCount = 1;
-
         vkEnumeratePhysicalDevices( vk.instance, &deviceCount, devices.data( ) );
         vkWrite.physicalDevice = *devices.begin( );
         VkDeviceQueueCreateInfo queueInfo{
