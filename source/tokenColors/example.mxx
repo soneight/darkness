@@ -4,7 +4,8 @@
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 // -- std
-#include <cstdlib>
+#include <cassert>
+#include <cstdlib> // for EXIT_{SUCCESS,FAILURE}
 // modern modules second
 import std;
 
@@ -16,6 +17,8 @@ namespace app {
     using Size = std::size_t;
     using String = std::string;
     using StringView = std::string_view;
+    template< typename Type >
+    using Grow = std::vector< Type >;
     template< typename Type, typename Err >
     using Expect = std::expected< Type, Err >;
     using ExpectVoid = Expect< void, String >;
@@ -41,6 +44,11 @@ namespace app {
         VkPhysicalDevice physicalDevice;
         VkDevice device;
         VkQueue graphicsQueue;
+        VkSwapchainKHR swapChain;
+        VkFormat swapFormat;
+        VkExtent2D swapExtent;
+        Grow< VkImage > swapImages;
+        Grow< VkImageView > swapImageViews;
     };
 
     static DataSDL Global_SDL{ };
@@ -172,11 +180,57 @@ namespace app {
         CHECK_VK( vkCreateDevice( vk.physicalDevice, &deviceInfo, nullptr, &vk.device ) );
         // -- queue
         vkGetDeviceQueue( vk.device, 0, 0, &vk.graphicsQueue );
+        // swap
+        // -- chain
+        VkSurfaceCapabilitiesKHR caps;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.surface, &caps );
+        vk.swapExtent = caps.currentExtent;
+        vk.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
+        VkSwapchainCreateInfoKHR swapInfo{
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .surface = vk.surface,
+            .minImageCount = caps.minImageCount,
+            .imageFormat = vk.swapFormat,
+            .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+            .imageExtent = vk.swapExtent,
+            .imageArrayLayers = 1,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .preTransform = caps.currentTransform,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+            .clipped = VK_TRUE
+        };
+        CHECK_VK( vkCreateSwapchainKHR( vk.device, &swapInfo, nullptr, &vk.swapChain ) );
+        // -- images
+        Unt2 swapImageCount;
+        vkGetSwapchainImagesKHR( vk.device, vk.swapChain, &swapImageCount, NULL );
+        std::println( "swap image count: {}", swapImageCount );
+        vk.swapImages.resize( swapImageCount );
+        vk.swapImageViews.resize( swapImageCount );
+        vkGetSwapchainImagesKHR( vk.device, vk.swapChain, &swapImageCount, vk.swapImages.data( ) );
+        assert( vk.swapImages.size( ) == vk.swapImageViews.size( ) );
+        VkImageViewCreateInfo viewInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = vk.swapFormat,
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
+        };
+        for ( Size i = 0u; i < swapImageCount; ++i ) {
+            viewInfo.image = vk.swapImages[i];
+            CHECK_VK( vkCreateImageView( vk.device, &viewInfo, nullptr, &vk.swapImageViews[i] ) );
+        }
+
     }
 
     void free_vk( ) {
         auto const &vk = Global_VK;
         if ( not vk.device ) goto surface_;
+        for ( auto view : vk.swapImageViews ) {
+            vkDestroyImageView( vk.device, view, nullptr );
+        }
+        if ( not vk.swapChain ) goto device_;
+        vkDestroySwapchainKHR( vk.device, vk.swapChain, NULL );
+    device_:
         vkDestroyDevice( vk.device, nullptr );
     surface_:
         if ( not vk.surface ) goto instance_;
