@@ -1,6 +1,8 @@
 // legacy headers first
 // -- sdl
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#include <vulkan/vulkan.h>
 // -- std
 #include <cstdlib>
 // modern modules second
@@ -8,6 +10,9 @@ import std;
 
 namespace app {
     using namespace std::string_literals;
+    using Unt2 = std::uint32_t;
+    using Half = float;
+    using Real = double;
     using Size = std::size_t;
     using String = std::string;
     using StringView = std::string_view;
@@ -29,18 +34,33 @@ namespace app {
         SDL_Window *window;
     };
 
+    struct DataVK {
+        VkInstance instance;
+        VkSurfaceKHR surface;
+        Half queuePriorities;
+        VkPhysicalDevice physicalDevice;
+        VkDevice device;
+        VkQueue graphicsQueue;
+    };
+
     static DataSDL Global_SDL{ };
+    static DataVK Global_VK{ };
 
     auto init_sdl( ) -> ExpectVoid;
     void free_sdl( );
+
+    void init_vk( SDL_Window *window );
+    void free_vk( );
 }
+
+#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { std::println( "Vulkan Error: {}", static_cast< unsigned >( res ) ); }
 
 auto main( int argc, char *argv[] ) -> int try {
     using app::String;
     app::Global_SDL.window = app::init_sdl( )
     .and_then( []( ) -> app::ExpectWindow {
         auto window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
-        if ( not window ) return window;
+        if ( window ) return window;
         SDL_Quit( );
         return std::unexpected{ "SDL_CreateWindow failed" };
     })
@@ -50,6 +70,8 @@ auto main( int argc, char *argv[] ) -> int try {
     })
     .transform_error( []( String const &str) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
     .value( );
+
+    app::init_vk( app::Global_SDL.window );
 
     bool running = true;
     SDL_Event event;
@@ -62,6 +84,7 @@ auto main( int argc, char *argv[] ) -> int try {
         SDL_Delay( 20 );
     }
 
+    app::free_vk( );
     app::free_sdl( );
 
     return EXIT_SUCCESS;
@@ -82,5 +105,86 @@ namespace app {
     void free_sdl( ) {
         if ( Global_SDL.window ) SDL_DestroyWindow( Global_SDL.window );
         SDL_Quit( );
+    }
+
+    void init_vk( SDL_Window *window ) {
+        auto &vk = app::Global_VK;
+        // instance
+        // -- layers
+        char const *layers[] = { "VK_LAYER_KHRONOS_validation" };
+        // -- extensions
+        std::uint32_t extensionsCount;
+        auto extensions = SDL_Vulkan_GetInstanceExtensions( &extensionsCount );
+        std::println( "SDL vulkan activated extensions: " );
+        for ( auto i = 0u; i < extensionsCount; ++i ) {
+            std::println( "\t{}", extensions[i] );
+        }
+        // -- app
+        VkApplicationInfo appInfo{
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = "example.mxx",
+            .apiVersion = VK_API_VERSION_1_3
+        };
+        // -- instance
+        VkInstanceCreateInfo instanceInfo{
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &appInfo,
+            .enabledLayerCount = 1,
+            .ppEnabledLayerNames = layers,
+            .enabledExtensionCount = extensionsCount,
+            .ppEnabledExtensionNames = extensions
+        };
+        CHECK_VK( vkCreateInstance( &instanceInfo, nullptr, &vk.instance ) );
+        // surface
+        if ( not SDL_Vulkan_CreateSurface( window, vk.instance, nullptr, &vk.surface) ) {
+            std::println( "SDL_Vulkan_CreateSurface failed: {}", SDL_GetError( ) );
+            std::exit( 8 );
+        }
+        // device
+        // -- physical
+        Unt2 deviceCount;
+        vkEnumeratePhysicalDevices( vk.instance, &deviceCount, nullptr );
+        std::println( "devices count: {}", deviceCount );
+        VkPhysicalDevice devices[1];
+        deviceCount = 1;
+        vkEnumeratePhysicalDevices( vk.instance, &deviceCount, devices );
+        vk.physicalDevice = devices[0];
+        VkDeviceQueueCreateInfo queueInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = 0,
+            .queueCount = 1,
+            .pQueuePriorities = &vk.queuePriorities
+        };
+        VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
+            .dynamicRendering = VK_TRUE
+        };
+        // -- extensions
+        char const *deviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        VkDeviceCreateInfo deviceInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext = &dynamicFeatures,
+            .queueCreateInfoCount = 1,
+            .pQueueCreateInfos = &queueInfo,
+            .enabledExtensionCount = 1,
+            .ppEnabledExtensionNames = deviceExtensions
+        };
+        CHECK_VK( vkCreateDevice( vk.physicalDevice, &deviceInfo, nullptr, &vk.device ) );
+        // -- queue
+        vkGetDeviceQueue( vk.device, 0, 0, &vk.graphicsQueue );
+    }
+
+    void free_vk( ) {
+        auto const &vk = Global_VK;
+        if ( not vk.device ) goto surface_;
+        vkDestroyDevice( vk.device, nullptr );
+    surface_:
+        if ( not vk.surface ) goto instance_;
+    instance_:
+        if ( not vk.instance ) goto return_;
+        vkDestroySurfaceKHR( vk.instance, vk.surface, nullptr );
+        vkDestroyInstance( vk.instance, nullptr );
+    return_:
+        return;
     }
 }

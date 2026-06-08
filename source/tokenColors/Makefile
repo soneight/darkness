@@ -13,6 +13,8 @@ MXX_OBJECT := $(BUILDS)/example.obj
 MXX_SOURCE := $(SOURCE)/example.mxx
 MXX_IMPOBJ := $(BUILDS)/std.o
 MXX_IMPORT := $(IMPORT)/bits/std.cc
+# web variables
+WEB_SOURCE := $(SOURCE)/example.mjs
 # usage
 usage:
 	@echo "usage: make [command]"
@@ -57,4 +59,4 @@ clean:
 	@rm -rf temp/
 # web related targets
 run-web:
-	node example.mjs
+	node $(WEB_SOURCE)
