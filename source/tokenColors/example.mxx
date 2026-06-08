@@ -52,6 +52,8 @@ namespace app {
         VkExtent2D swapExtent;
         Grow< VkImage > swapImages;
         Grow< VkImageView > swapImageViews;
+        VkCommandPool commandPool;
+        Flat< VkCommandBuffer, 1 > commandBuffers;
     };
 
     static DataSDL Global_SDL{ };
@@ -62,6 +64,7 @@ namespace app {
 
     void init_vk( SDL_Window *window );
     void free_vk( );
+    void draw_vk( );
 }
 
 #define CHECK_VK( res ) if ( res != VK_SUCCESS ) { \
@@ -95,7 +98,7 @@ auto main( int argc, char *argv[] ) -> int try {
         while ( SDL_PollEvent( &event ) ) {
             if ( event.type == SDL_EVENT_QUIT ) running = false;
         }
-
+        app::draw_vk( );
         SDL_Delay( 20 );
     }
 
@@ -228,13 +231,37 @@ namespace app {
             viewInfo.image = vk.swapImages[i];
             CHECK_VK( vkCreateImageView( vk.device, &viewInfo, nullptr, &vkWrite.swapImageViews[i] ) );
         }
+        // command
+        // -- pool
+        VkCommandPoolCreateInfo poolInfo{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = 0,
+        };
+        CHECK_VK( vkCreateCommandPool( vk.device, &poolInfo, nullptr, &vkWrite.commandPool ) );
+        // -- buffer
+        VkCommandBufferAllocateInfo bufferInfo{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = vk.commandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = vk.commandBuffers.size( ),
+        };
+        CHECK_VK( vkAllocateCommandBuffers( vk.device, &bufferInfo, vkWrite.commandBuffers.data( ) ) );
 
     }
 
     void free_vk( ) {
         auto const &vk = Global_VK;
         if ( not vk.device ) goto surface_;
+        vkDeviceWaitIdle( vk.device );
+        if ( not vk.commandPool ) goto images_;
+        if ( not *vk.commandBuffers.begin( ) ) goto pool_;
+        vkFreeCommandBuffers(vk.device, vk.commandPool, vk.commandBuffers.size( ), vk.commandBuffers.data( ) );
+    pool_:
+        vkDestroyCommandPool( vk.device, vk.commandPool, nullptr );
+    images_:
         for ( auto view : vk.swapImageViews ) {
+            if ( not view ) continue;
             vkDestroyImageView( vk.device, view, nullptr );
         }
         if ( not vk.swapChain ) goto device_;
@@ -242,12 +269,16 @@ namespace app {
     device_:
         vkDestroyDevice( vk.device, nullptr );
     surface_:
-        if ( not vk.surface ) goto instance_;
-    instance_:
         if ( not vk.instance ) goto return_;
+        if ( not vk.surface ) goto instance_;
         vkDestroySurfaceKHR( vk.instance, vk.surface, nullptr );
+    instance_:
         vkDestroyInstance( vk.instance, nullptr );
     return_:
         return;
+    }
+
+    void draw_vk( ) {
+        auto const &vk = Global_VK;
     }
 }
