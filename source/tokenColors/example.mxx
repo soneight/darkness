@@ -15,10 +15,13 @@ namespace app {
     using Half = float;
     using Real = double;
     using Size = std::size_t;
+    using CStr = char const *;
     using String = std::string;
     using StringView = std::string_view;
     template< typename Type >
     using Grow = std::vector< Type >;
+    template< typename Type, Size Count >
+    using Flat = std::array< Type, Count >;
     template< typename Type, typename Err >
     using Expect = std::expected< Type, Err >;
     using ExpectVoid = Expect< void, String >;
@@ -61,7 +64,11 @@ namespace app {
     void free_vk( );
 }
 
-#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { std::println( "Vulkan Error: {}", static_cast< unsigned >( res ) ); }
+#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { \
+    std::println( "Vulkan Error: {}", static_cast< unsigned >( res ) );\
+    app::free_vk( );\
+    std::exit( EXIT_FAILURE );\
+}
 
 auto main( int argc, char *argv[] ) -> int try {
     using app::String;
@@ -116,10 +123,11 @@ namespace app {
     }
 
     void init_vk( SDL_Window *window ) {
-        auto &vk = app::Global_VK;
+        auto &vkWrite = app::Global_VK;
+        auto const &vk = app::Global_VK;
         // instance
         // -- layers
-        char const *layers[] = { "VK_LAYER_KHRONOS_validation" };
+        Flat< CStr, 1 > layers{ "VK_LAYER_KHRONOS_validation" };
         // -- extensions
         std::uint32_t extensionsCount;
         auto extensions = SDL_Vulkan_GetInstanceExtensions( &extensionsCount );
@@ -137,26 +145,28 @@ namespace app {
         VkInstanceCreateInfo instanceInfo{
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pApplicationInfo = &appInfo,
-            .enabledLayerCount = 1,
-            .ppEnabledLayerNames = layers,
+            .enabledLayerCount = layers.size( ),
+            .ppEnabledLayerNames = layers.data( ),
             .enabledExtensionCount = extensionsCount,
             .ppEnabledExtensionNames = extensions
         };
-        CHECK_VK( vkCreateInstance( &instanceInfo, nullptr, &vk.instance ) );
+        CHECK_VK( vkCreateInstance( &instanceInfo, nullptr, &vkWrite.instance ) );
         // surface
-        if ( not SDL_Vulkan_CreateSurface( window, vk.instance, nullptr, &vk.surface) ) {
+        if ( not SDL_Vulkan_CreateSurface( window, vk.instance, nullptr, &vkWrite.surface) ) {
             std::println( "SDL_Vulkan_CreateSurface failed: {}", SDL_GetError( ) );
-            std::exit( 8 );
+            free_vk( );
+            std::exit( EXIT_FAILURE );
         }
         // device
         // -- physical
         Unt2 deviceCount;
         vkEnumeratePhysicalDevices( vk.instance, &deviceCount, nullptr );
         std::println( "devices count: {}", deviceCount );
-        VkPhysicalDevice devices[1];
+        Flat< VkPhysicalDevice, 1 > devices;
         deviceCount = 1;
-        vkEnumeratePhysicalDevices( vk.instance, &deviceCount, devices );
-        vk.physicalDevice = devices[0];
+
+        vkEnumeratePhysicalDevices( vk.instance, &deviceCount, devices.data( ) );
+        vkWrite.physicalDevice = *devices.begin( );
         VkDeviceQueueCreateInfo queueInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .queueFamilyIndex = 0,
@@ -168,24 +178,24 @@ namespace app {
             .dynamicRendering = VK_TRUE
         };
         // -- extensions
-        char const *deviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
         VkDeviceCreateInfo deviceInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pNext = &dynamicFeatures,
             .queueCreateInfoCount = 1,
             .pQueueCreateInfos = &queueInfo,
-            .enabledExtensionCount = 1,
-            .ppEnabledExtensionNames = deviceExtensions
+            .enabledExtensionCount = deviceExtensions.size( ),
+            .ppEnabledExtensionNames = deviceExtensions.data( )
         };
-        CHECK_VK( vkCreateDevice( vk.physicalDevice, &deviceInfo, nullptr, &vk.device ) );
+        CHECK_VK( vkCreateDevice( vk.physicalDevice, &deviceInfo, nullptr, &vkWrite.device ) );
         // -- queue
-        vkGetDeviceQueue( vk.device, 0, 0, &vk.graphicsQueue );
+        vkGetDeviceQueue( vk.device, 0, 0, &vkWrite.graphicsQueue );
         // swap
         // -- chain
         VkSurfaceCapabilitiesKHR caps;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.surface, &caps );
-        vk.swapExtent = caps.currentExtent;
-        vk.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
+        vkWrite.swapExtent = caps.currentExtent;
+        vkWrite.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
         VkSwapchainCreateInfoKHR swapInfo{
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface = vk.surface,
@@ -200,15 +210,14 @@ namespace app {
             .presentMode = VK_PRESENT_MODE_FIFO_KHR,
             .clipped = VK_TRUE
         };
-        CHECK_VK( vkCreateSwapchainKHR( vk.device, &swapInfo, nullptr, &vk.swapChain ) );
+        CHECK_VK( vkCreateSwapchainKHR( vk.device, &swapInfo, nullptr, &vkWrite.swapChain ) );
         // -- images
         Unt2 swapImageCount;
         vkGetSwapchainImagesKHR( vk.device, vk.swapChain, &swapImageCount, NULL );
         std::println( "swap image count: {}", swapImageCount );
-        vk.swapImages.resize( swapImageCount );
-        vk.swapImageViews.resize( swapImageCount );
-        vkGetSwapchainImagesKHR( vk.device, vk.swapChain, &swapImageCount, vk.swapImages.data( ) );
-        assert( vk.swapImages.size( ) == vk.swapImageViews.size( ) );
+        vkWrite.swapImages.resize( swapImageCount );
+        vkWrite.swapImageViews.resize( swapImageCount );
+        vkGetSwapchainImagesKHR( vk.device, vk.swapChain, &swapImageCount, vkWrite.swapImages.data( ) );
         VkImageViewCreateInfo viewInfo{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -217,7 +226,7 @@ namespace app {
         };
         for ( Size i = 0u; i < swapImageCount; ++i ) {
             viewInfo.image = vk.swapImages[i];
-            CHECK_VK( vkCreateImageView( vk.device, &viewInfo, nullptr, &vk.swapImageViews[i] ) );
+            CHECK_VK( vkCreateImageView( vk.device, &viewInfo, nullptr, &vkWrite.swapImageViews[i] ) );
         }
 
     }
