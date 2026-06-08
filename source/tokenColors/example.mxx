@@ -5,21 +5,51 @@
 #include <cstdlib>
 // modern modules second
 import std;
-// TODO: rewrite using C++23 std::expected for error handling
+
+namespace app {
+    using namespace std::string_literals;
+    using Size = std::size_t;
+    using String = std::string;
+    using StringView = std::string_view;
+    template< typename Type, typename Err >
+    using Expect = std::expected< Type, Err >;
+    using ExpectVoid = Expect< void, String >;
+    using ExpectWindow = Expect< SDL_Window *, String >;
+
+    auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> StringView {
+        static_assert( sizeof...( args ) > 0, "app::throw_error requires at least one parameter" );
+        Size totalSize = ( StringView{ args }.size( ) + ... + 0u );
+        static String result;
+        result.reserve( totalSize );
+        ( result.append( args ), ... );
+        throw StringView{ result };
+    }
+
+    struct DataSDL {
+        SDL_Window *window;
+    };
+
+    static DataSDL Global_SDL{ };
+
+    auto init_sdl( ) -> ExpectVoid;
+    void free_sdl( );
+}
 
 auto main( int argc, char *argv[] ) -> int try {
-    if ( not SDL_Init( SDL_INIT_VIDEO ) ) {
-        SDL_Log( "SDL_Init failed: %s", SDL_GetError( ) );
-        return EXIT_FAILURE;
-    }
-
-    auto window = SDL_CreateWindow("Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
-
-    if ( not window ) {
-        SDL_Log( "SDL_CreateWindow failed: %s", SDL_GetError( ) );
+    using app::String;
+    app::Global_SDL.window = app::init_sdl( )
+    .and_then( []( ) -> app::ExpectWindow {
+        auto window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
+        if ( not window ) return window;
         SDL_Quit( );
-        return EXIT_FAILURE;
-    }
+        return std::unexpected{ "SDL_CreateWindow failed" };
+    })
+    .transform( []( SDL_Window *window ) {
+        std::println( "init_sdl success" );
+        return window;
+    })
+    .transform_error( []( String const &str) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
+    .value( );
 
     bool running = true;
     SDL_Event event;
@@ -29,17 +59,28 @@ auto main( int argc, char *argv[] ) -> int try {
             if ( event.type == SDL_EVENT_QUIT ) running = false;
         }
 
-        SDL_Delay(20);
+        SDL_Delay( 20 );
     }
 
-    SDL_DestroyWindow( window );
-    SDL_Quit( );
+    app::free_sdl( );
 
     return EXIT_SUCCESS;
-} catch ( char const *msg ) {
+} catch ( app::StringView msg ) {
     std::cerr << msg << "\n";
     return EXIT_FAILURE;
 } catch ( ... ) {
     std::cerr << "...\n";
     return EXIT_FAILURE;
+}
+// definitions
+namespace app {
+    auto init_sdl( ) -> ExpectVoid {
+        if ( not SDL_Init( SDL_INIT_VIDEO ) ) return std::unexpected{ "SDL_Init failed"s };
+        return { };
+    }
+
+    void free_sdl( ) {
+        if ( Global_SDL.window ) SDL_DestroyWindow( Global_SDL.window );
+        SDL_Quit( );
+    }
 }
