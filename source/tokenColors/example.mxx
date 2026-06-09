@@ -9,6 +9,21 @@
 // modern modules second
 import std;
 
+#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
+
+#define APP_CHECK_FREE( pname ) \
+template< Bool check = false > void free_##pname( ) const <% \
+    if constexpr ( check ) { if ( not pname ) return; }
+
+#define APP_CHECK_FREE2( fname, pname ) \
+template< Bool check = false > void free_##fname( ) const <% \
+    if constexpr ( check ) { if ( not pname ) return; }
+
+#define APP_CHECK_RANGE_FREE2( fname, range, value ) \
+template< Bool check = false > void free_##fname( ) const <% \
+    for ( auto const &value : range ) <% \
+        if constexpr ( check ) { if ( not value ) continue; }
+
 namespace app {
     using namespace std::string_literals;
     using Bool = bool;
@@ -29,7 +44,7 @@ namespace app {
     using ExpectWindow = Expect< SDL_Window *, String >;
 
     auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> String {
-        static_assert( sizeof...( args ) > 0, "app::throw_error requires at least one parameter" );
+        static_assert( sizeof...( args ) > 0u, "app::throw_error requires at least one parameter" );
         Size totalSize = ( StringView{ args }.size( ) + ... + 0u );
         String result;
         result.reserve( totalSize );
@@ -37,14 +52,6 @@ namespace app {
         throw result;
         return result;
     }
-
-#define APP_CHECK_FREE( pname ) \
-template< Bool check = false > void free_##pname( ) const <%\
-    if constexpr ( check ) { if ( not pname ) return; }
-
-#define APP_CHECK_FREE2( fname, pname ) \
-template< Bool check = false > void free_##fname( ) const <%\
-    if constexpr ( check ) { if ( not pname ) return; }
 
     struct DataSDL {
         SDL_Window *window;
@@ -63,23 +70,17 @@ template< Bool check = false > void free_##fname( ) const <%\
         Grow< VkImageView > swapImageViews;
         VkCommandPool commandPool;
         Flat< VkCommandBuffer, 1 > commandBuffers;
-        VkSemaphore imageSemaphore;
-        VkSemaphore renderSemaphore;
-        VkFence flightFence;
+        Flat< VkSemaphore, 4 > imageSemaphores;
+        Flat< VkSemaphore, 4 > presentSemaphores;
+        Flat< VkFence, 1 > flightFences;
         void free_command_buffers( ) const { vkFreeCommandBuffers( device, commandPool, commandBuffers.size( ), commandBuffers.data( ) ); }
-        template< Bool check = false >
-        void free_swap_image_views( ) const {
-            for ( auto view : swapImageViews ) {
-                if constexpr ( check ) { if ( not view ) continue; }
-                vkDestroyImageView( device, view, nullptr );
-            }
-        }
         APP_CHECK_FREE( device ) vkDestroyDevice( device, nullptr ); %>
         APP_CHECK_FREE2( swap_chain, swapChain ) vkDestroySwapchainKHR( device, swapChain, nullptr ); %>
         APP_CHECK_FREE2( command_pool, commandPool ) vkDestroyCommandPool( device, commandPool, nullptr ); %>
-        APP_CHECK_FREE2( image_semaphore, imageSemaphore ) vkDestroySemaphore( device, imageSemaphore, nullptr ); %>
-        APP_CHECK_FREE2( render_semaphore, renderSemaphore ) vkDestroySemaphore( device, renderSemaphore, nullptr ); %>
-        APP_CHECK_FREE2( flight_fence, flightFence ) vkDestroyFence( device, flightFence, nullptr ); %>
+        APP_CHECK_RANGE_FREE2( swap_image_views, swapImageViews, value ) vkDestroyImageView( device, value, nullptr ); %> %>
+        APP_CHECK_RANGE_FREE2( image_semaphores, imageSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
+        APP_CHECK_RANGE_FREE2( present_semaphores, presentSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
+        APP_CHECK_RANGE_FREE2( flight_fences, flightFences, value ) vkDestroyFence( device, value, nullptr ); %> %>
     };
 
     struct DataVK {
@@ -90,6 +91,7 @@ template< Bool check = false > void free_##fname( ) const <%\
         VkFormat swapFormat;
         VkExtent2D swapExtent;
         Grow< VkImage > swapImages;
+        Unt2 curFrame;
     };
 
     static DataSDL Global_SDL{ };
@@ -109,8 +111,6 @@ template< Bool check = false > void free_##fname( ) const <%\
         }
     };
 }
-
-#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
 
 auto main( int argc, char *argv[] ) -> int try {
     app::Free app_;
@@ -138,7 +138,6 @@ auto main( int argc, char *argv[] ) -> int try {
             if ( event.type == SDL_EVENT_QUIT ) running = false;
         }
         app::draw_vk( );
-        SDL_Delay( 20 );
     }
 
     return EXIT_SUCCESS;
@@ -290,28 +289,32 @@ namespace app {
         // sync
         // -- semaphores
         VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-        vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &vkWrite.d.imageSemaphore );
-        vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &vkWrite.d.renderSemaphore );
+        for ( auto &sema : vkWrite.d.imageSemaphores ) {
+            CHECK_VK( vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &sema ) );
+        }
+        for ( auto &sema : vkWrite.d.presentSemaphores ) {
+            CHECK_VK( vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &sema ) );
+        }
         // -- fences
         VkFenceCreateInfo fenceInfo{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT
         };
-        vkCreateFence( vk.d.device, &fenceInfo, nullptr, &vkWrite.d.flightFence );
+        CHECK_VK( vkCreateFence( vk.d.device, &fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
     }
 
     void free_vk( ) {
-        constexpr Bool Check = true; // NOTE: must be true, helper
+        static constexpr Bool Check = true; // NOTE: must be true, helper
         auto const &vk = Global_VK;
         if ( not vk.d.device ) goto instance_;
         vkDeviceWaitIdle( vk.d.device );
-        vk.d.free_flight_fence< Check >( );
-        vk.d.free_render_semaphore< Check >( );
-        vk.d.free_image_semaphore< Check >( );
+        vk.d.free_flight_fences< Check >( );
+        vk.d.free_present_semaphores< Check >( );
+        vk.d.free_image_semaphores< Check >( );
         vk.d.free_swap_image_views< Check >( );
         vk.d.free_swap_chain< Check >( );
         if ( not vk.d.commandPool ) goto device_;
-        if ( vk.d.commandBuffers[0] ) vk.d.free_command_buffers( );
+        vk.d.free_command_buffers( );
         vk.d.free_command_pool(  );
     device_:
         vk.d.free_device( );
@@ -324,13 +327,14 @@ namespace app {
     }
 
     void draw_vk( ) {
+        auto &vkWrite = Global_VK;
         auto const &vk = Global_VK;
 
-        vkWaitForFences( vk.d.device, 1, &vk.d.flightFence, VK_TRUE, UINT64_MAX );
-        vkResetFences( vk.d.device, 1, &vk.d.flightFence );
-
+        vkWaitForFences( vk.d.device, 1, &vk.d.flightFences[0], VK_TRUE, UINT64_MAX );
+        vkResetFences( vk.d.device, 1, &vk.d.flightFences[0] );
+        Unt2 semaIdx = vkWrite.curFrame++ & 0b11u;
         Unt2 imageIndex;
-        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.d.imageSemaphore, VK_NULL_HANDLE, &imageIndex );
+        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.d.imageSemaphores[semaIdx], VK_NULL_HANDLE, &imageIndex );
 
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
         VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
@@ -378,25 +382,23 @@ namespace app {
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &vk.d.imageSemaphore,
+            .pWaitSemaphores = &vk.d.imageSemaphores[semaIdx],
             .pWaitDstStageMask = (VkPipelineStageFlags[]){ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
             .commandBufferCount = 1,
             .pCommandBuffers = vk.d.commandBuffers.begin( ),
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &vk.d.renderSemaphore
+            .pSignalSemaphores = &vk.d.presentSemaphores[semaIdx]
         };
-        vkQueueSubmit( vk.graphicsQueue, 1, &submitInfo, vk.d.flightFence );
+        vkQueueSubmit( vk.graphicsQueue, 1, &submitInfo, vk.d.flightFences[0] );
 
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &vk.d.renderSemaphore,
+            .pWaitSemaphores = &vk.d.presentSemaphores[semaIdx],
             .swapchainCount = 1,
             .pSwapchains = &vk.d.swapChain,
             .pImageIndices = &imageIndex
         };
         vkQueuePresentKHR( vk.graphicsQueue, &presentInfo);
-        // TODO: fix semaphores sync issues and remove idling
-        vkDeviceWaitIdle( vk.d.device );
     }
 }
