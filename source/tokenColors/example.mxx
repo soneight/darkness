@@ -27,13 +27,14 @@ namespace app {
     using ExpectVoid = Expect< void, String >;
     using ExpectWindow = Expect< SDL_Window *, String >;
 
-    auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> StringView {
+    auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> String {
         static_assert( sizeof...( args ) > 0, "app::throw_error requires at least one parameter" );
         Size totalSize = ( StringView{ args }.size( ) + ... + 0u );
-        static String result;
+        String result;
         result.reserve( totalSize );
         ( result.append( args ), ... );
-        throw StringView{ result };
+        throw result;
+        return result;
     }
 
     struct DataSDL {
@@ -42,6 +43,7 @@ namespace app {
     };
 
     struct DataVK {
+        // init
         VkInstance instance;
         VkSurfaceKHR surface;
         Half queuePriorities;
@@ -55,6 +57,10 @@ namespace app {
         Grow< VkImageView > swapImageViews;
         VkCommandPool commandPool;
         Flat< VkCommandBuffer, 1 > commandBuffers;
+        // draw
+        VkSemaphore imageSemaphore;
+        VkSemaphore renderSemaphore;
+        VkFence flightFence;
     };
 
     static DataSDL Global_SDL{ };
@@ -75,11 +81,7 @@ namespace app {
     };
 }
 
-#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { \
-    std::println( "Vulkan Error: {}", static_cast< unsigned >( res ) );\
-    app::Free app_;\
-    std::exit( EXIT_FAILURE );\
-}
+#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
 
 auto main( int argc, char *argv[] ) -> int try {
     app::Free app_;
@@ -111,7 +113,7 @@ auto main( int argc, char *argv[] ) -> int try {
     }
 
     return EXIT_SUCCESS;
-} catch ( app::StringView msg ) {
+} catch ( app::String const &msg ) {
     std::cerr << msg << "\n";
     return EXIT_FAILURE;
 } catch ( ... ) {
@@ -205,6 +207,7 @@ namespace app {
         VkSurfaceCapabilitiesKHR caps;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.surface, &caps );
         vkWrite.swapExtent = caps.currentExtent;
+        std::println( "swap extent: {}x{}", vk.swapExtent.width, vk.swapExtent.height );
         vkWrite.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
         VkSwapchainCreateInfoKHR swapInfo{
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -254,14 +257,28 @@ namespace app {
             .commandBufferCount = vk.commandBuffers.size( ),
         };
         CHECK_VK( vkAllocateCommandBuffers( vk.device, &bufferInfo, vkWrite.commandBuffers.data( ) ) );
-
+        // sync
+        // -- semaphores
+        VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        vkCreateSemaphore( vk.device, &semaInfo, nullptr, &vkWrite.imageSemaphore );
+        vkCreateSemaphore( vk.device, &semaInfo, nullptr, &vkWrite.renderSemaphore );
+        // -- fences
+        VkFenceCreateInfo fenceInfo{
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT
+        };
+        vkCreateFence( vk.device, &fenceInfo, nullptr, &vkWrite.flightFence );
     }
 
     void free_vk( ) {
         auto const &vk = Global_VK;
         if ( not vk.device ) goto surface_;
         vkDeviceWaitIdle( vk.device );
+        if ( vk.flightFence ) vkDestroyFence( vk.device, vk.flightFence, nullptr );
+        if ( vk.renderSemaphore ) vkDestroySemaphore( vk.device, vk.renderSemaphore, nullptr );
+        if ( vk.imageSemaphore ) vkDestroySemaphore( vk.device, vk.imageSemaphore, nullptr );
         if ( not vk.commandPool ) goto images_;
+    buffers_:
         if ( not *vk.commandBuffers.begin( ) ) goto pool_;
         vkFreeCommandBuffers(vk.device, vk.commandPool, vk.commandBuffers.size( ), vk.commandBuffers.data( ) );
     pool_:
@@ -286,6 +303,82 @@ namespace app {
     }
 
     void draw_vk( ) {
+        static bool first = false;
+        // if ( first) return;
+        // first = true;
         auto const &vk = Global_VK;
+
+        vkWaitForFences( vk.device, 1, &vk.flightFence, VK_TRUE, UINT64_MAX );
+        vkResetFences( vk.device, 1, &vk.flightFence );
+
+        Unt2 imageIndex;
+        vkAcquireNextImageKHR( vk.device, vk.swapChain, UINT64_MAX, vk.imageSemaphore, VK_NULL_HANDLE, &imageIndex );
+
+        vkResetCommandBuffer( *vk.commandBuffers.begin( ), 0);
+        VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        vkBeginCommandBuffer( *vk.commandBuffers.begin( ), &beginInfo );
+
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .image = vk.swapImages[imageIndex],
+            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
+        };
+        vkCmdPipelineBarrier( *vk.commandBuffers.begin( ), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        VkRenderingAttachmentInfo colorInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = vk.swapImageViews[imageIndex],
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = { .color = { { 1.f, .2f, .2f, 1.f } } }
+        };
+
+        VkRenderingInfo renderInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea = { { 0, 0 }, vk.swapExtent },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorInfo
+        };
+
+        vkCmdBeginRendering( *vk.commandBuffers.begin( ), &renderInfo );
+        // draw calls here
+        vkCmdEndRendering( *vk.commandBuffers.begin( ) );
+
+        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = 0;
+        vkCmdPipelineBarrier( vk.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        vkEndCommandBuffer( *vk.commandBuffers.begin( ) );
+
+        VkSubmitInfo submitInfo = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &vk.imageSemaphore,
+            .pWaitDstStageMask = (VkPipelineStageFlags[]){ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
+            .commandBufferCount = 1,
+            .pCommandBuffers = vk.commandBuffers.begin( ),
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = &vk.renderSemaphore
+        };
+        vkQueueSubmit( vk.graphicsQueue, 1, &submitInfo, vk.flightFence );
+
+        VkPresentInfoKHR presentInfo = {
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &vk.renderSemaphore,
+            .swapchainCount = 1,
+            .pSwapchains = &vk.swapChain,
+            .pImageIndices = &imageIndex
+        };
+        vkQueuePresentKHR( vk.graphicsQueue, &presentInfo);
+        // TODO: fix semaphores sync issues and remove idling
+        vkDeviceWaitIdle( vk.device );
     }
 }
