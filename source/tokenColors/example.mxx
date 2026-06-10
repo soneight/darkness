@@ -3,11 +3,22 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
-// -- std
-#include <cassert>
-#include <cstdlib> // for EXIT_{SUCCESS,FAILURE}
+// -- std (NOTE modules do not expose std macros)
+#include <cassert> // for macros: assert
+#include <cstdlib> // for macros: EXIT_{SUCCESS,FAILURE}
 // modern modules second
+#ifdef APP_FIX_CLANGD
+#   include <array>
+#   include <cstdint>
+#   include <expected>
+#   include <iostream>
+#   include <string>
+#   include <string_view>
+#   include <print>
+#   include <vector>
+#else
 import std;
+#endif//APP_FIX_CLANGD
 
 #define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
 
@@ -378,11 +389,12 @@ namespace app {
 
         vkEndCommandBuffer( vk.d.commandBuffers[0] );
 
+        Flat< VkPipelineStageFlags, 1 > stageFlags{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores = &vk.d.imageSemaphores[semaIdx],
-            .pWaitDstStageMask = (VkPipelineStageFlags[]){ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
+            .pWaitDstStageMask = stageFlags.data( ),
             .commandBufferCount = 1,
             .pCommandBuffers = vk.d.commandBuffers.begin( ),
             .signalSemaphoreCount = 1,

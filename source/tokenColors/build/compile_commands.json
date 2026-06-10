@@ -1,0 +1,13 @@
+[{
+    "directory": "/home/oleg/code/hub/soneight/darkness/source/tokenColors",
+    "command": "/usr/bin/clang -std=c90 -c -x c example.c",
+    "file": "example.c"
+}, {
+    "directory": "/home/oleg/code/hub/soneight/darkness/source/tokenColors",
+    "arguments": [ "/usr/bin/clang++", "-std=c++17", "-c", "-x", "c++", "example.cxx" ],
+    "file": "example.cxx"
+}, {
+    "directory": "/home/oleg/code/hub/soneight/darkness/source/tokenColors",
+    "arguments": [ "/usr/bin/clang++", "-std=c++23", "-DAPP_FIX_CLANGD", "-c", "-x", "c++", "example.mxx" ],
+    "file": "example.mxx"
+}]
