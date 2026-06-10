@@ -106,9 +106,42 @@ namespace app {
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pApplicationInfo = &appInfo
         };
+        Half queuePriorities{ 1.f };
+        VkDeviceQueueCreateInfo queueInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueCount = 1,
+            .pQueuePriorities = &queuePriorities
+        };
         VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
             .dynamicRendering = VK_TRUE
+        };
+        VkDeviceCreateInfo deviceInfo{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext = &dynamicFeatures,
+            .queueCreateInfoCount = 1
+        };
+        VkImageViewCreateInfo viewInfo{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+        };
+        VkSwapchainCreateInfoKHR swapInfo{
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+            .imageArrayLayers = 1,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+            .clipped = VK_TRUE
+        };
+        VkCommandPoolCreateInfo poolInfo{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+        };
+        VkCommandBufferAllocateInfo bufferInfo{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY
         };
         VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
         VkFenceCreateInfo fenceInfo{
@@ -118,6 +151,30 @@ namespace app {
     };
 
     struct DrawVK final {
+        VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        VkRenderingAttachmentInfo colorInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE
+        };
+        VkRenderingInfo renderInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+        };
+        VkImageMemoryBarrier imageBarrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+        };
+        Flat< VkPipelineStageFlags, 1 > stageFlags{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        VkSubmitInfo submitInfo = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitDstStageMask = stageFlags.data( ),
+            .commandBufferCount = 1,
+            .signalSemaphoreCount = 1
+        };
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
@@ -222,6 +279,7 @@ namespace app {
         for ( auto i = 0u; i < extensionsCount; ++i ) {
             std::println( "\t{}", extensions[i] );
         }
+        // -- info
         vkWrite.init.instanceInfo.enabledLayerCount = layers.size( );
         vkWrite.init.instanceInfo.ppEnabledLayerNames = layers.data( );
         vkWrite.init.instanceInfo.enabledExtensionCount = extensionsCount;
@@ -239,25 +297,14 @@ namespace app {
         Flat< VkPhysicalDevice, 1 > devices;
         deviceCount = 1;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) );
-        vkWrite.physicalDevice = *devices.begin( );
-        Half queuePriorities{ 1.f };
-        VkDeviceQueueCreateInfo queueInfo{
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = 0,
-            .queueCount = 1,
-            .pQueuePriorities = &queuePriorities
-        };
-        // -- extensions
+        vkWrite.physicalDevice = devices[0];
+        vkWrite.init.queueInfo.queueFamilyIndex = 0;
+        // -- info
         Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-        VkDeviceCreateInfo deviceInfo{
-            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext = &vk.init.dynamicFeatures,
-            .queueCreateInfoCount = 1,
-            .pQueueCreateInfos = &queueInfo,
-            .enabledExtensionCount = deviceExtensions.size( ),
-            .ppEnabledExtensionNames = deviceExtensions.data( )
-        };
-        CHECK_VK( vkCreateDevice( vk.physicalDevice, &deviceInfo, nullptr, &vkWrite.d.device ) );
+        vkWrite.init.deviceInfo.pQueueCreateInfos = &vk.init.queueInfo;
+        vkWrite.init.deviceInfo.enabledExtensionCount = deviceExtensions.size( );
+        vkWrite.init.deviceInfo.ppEnabledExtensionNames = deviceExtensions.data( );
+        CHECK_VK( vkCreateDevice( vk.physicalDevice, &vk.init.deviceInfo, nullptr, &vkWrite.d.device ) );
         // -- queue
         vkGetDeviceQueue( vk.d.device, 0, 0, &vkWrite.graphicsQueue );
         // swap
@@ -267,54 +314,33 @@ namespace app {
         vkWrite.swapExtent = caps.currentExtent;
         std::println( "swap extent: {}x{}", vk.swapExtent.width, vk.swapExtent.height );
         vkWrite.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
-        VkSwapchainCreateInfoKHR swapInfo{
-            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface = vk.i.surface,
-            .minImageCount = caps.minImageCount,
-            .imageFormat = vk.swapFormat,
-            .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            .imageExtent = vk.swapExtent,
-            .imageArrayLayers = 1,
-            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .preTransform = caps.currentTransform,
-            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
-            .clipped = VK_TRUE
-        };
-        CHECK_VK( vkCreateSwapchainKHR( vk.d.device, &swapInfo, nullptr, &vkWrite.d.swapChain ) );
+        vkWrite.init.swapInfo.surface = vk.i.surface;
+        vkWrite.init.swapInfo.imageFormat = vk.swapFormat;
+        vkWrite.init.swapInfo.imageExtent = vk.swapExtent;
+        vkWrite.init.swapInfo.minImageCount = caps.minImageCount;
+        vkWrite.init.swapInfo.preTransform = caps.currentTransform;
+        CHECK_VK( vkCreateSwapchainKHR( vk.d.device, &vk.init.swapInfo, nullptr, &vkWrite.d.swapChain ) );
         // -- images
         Unt2 swapImageCount;
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr );
         std::println( "swap image count: {}", swapImageCount );
         vkWrite.swapImages.resize( swapImageCount );
-        vkWrite.d.swapImageViews.resize( swapImageCount );
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, vkWrite.swapImages.data( ) );
-        VkImageViewCreateInfo viewInfo{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = vk.swapFormat,
-            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
-        };
+        // -- views
+        vkWrite.d.swapImageViews.resize( swapImageCount );
+        vkWrite.init.viewInfo.format = vk.swapFormat;
         for ( Size i = 0u; i < swapImageCount; ++i ) {
-            viewInfo.image = vk.swapImages[i];
-            CHECK_VK( vkCreateImageView( vk.d.device, &viewInfo, nullptr, &vkWrite.d.swapImageViews[i] ) );
+            vkWrite.init.viewInfo.image = vk.swapImages[i];
+            CHECK_VK( vkCreateImageView( vk.d.device, &vk.init.viewInfo, nullptr, &vkWrite.d.swapImageViews[i] ) );
         }
         // command
         // -- pool
-        VkCommandPoolCreateInfo poolInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = 0,
-        };
-        CHECK_VK( vkCreateCommandPool( vk.d.device, &poolInfo, nullptr, &vkWrite.d.commandPool ) );
+        vkWrite.init.poolInfo.queueFamilyIndex = 0;
+        CHECK_VK( vkCreateCommandPool( vk.d.device, &vk.init.poolInfo, nullptr, &vkWrite.d.commandPool ) );
         // -- buffer
-        VkCommandBufferAllocateInfo bufferInfo{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = vk.d.commandPool,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = vk.d.commandBuffers.size( ),
-        };
-        CHECK_VK( vkAllocateCommandBuffers( vk.d.device, &bufferInfo, vkWrite.d.commandBuffers.data( ) ) );
+        vkWrite.init.bufferInfo.commandPool = vk.d.commandPool;
+        vkWrite.init.bufferInfo.commandBufferCount = vk.d.commandBuffers.size( );
+        CHECK_VK( vkAllocateCommandBuffers( vk.d.device, &vk.init.bufferInfo, vkWrite.d.commandBuffers.data( ) ) );
         // sync
         // -- semaphores
         for ( auto &sema : vkWrite.d.imageSemaphores ) {
@@ -361,60 +387,36 @@ namespace app {
         vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.d.imageSemaphores[semaIdx], VK_NULL_HANDLE, &imageIndex );
 
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
-        VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-        vkBeginCommandBuffer( vk.d.commandBuffers[0], &beginInfo );
+        vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
 
-        VkImageMemoryBarrier barrier = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .image = vk.swapImages[imageIndex],
-            .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
-        };
-        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+        vkWrite.draw.imageBarrier.image = vk.swapImages[imageIndex];
+        vkWrite.draw.imageBarrier.srcAccessMask = 0;
+        vkWrite.draw.imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        vkWrite.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        vkWrite.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
 
-        VkRenderingAttachmentInfo colorInfo{
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = vk.d.swapImageViews[imageIndex],
-            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .clearValue = { .color = { { .1f, .4f, .4f, 1.f } } }
-        };
+        vkWrite.draw.colorInfo.imageView = vk.d.swapImageViews[imageIndex];
+        vkWrite.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
+        vkWrite.draw.renderInfo.renderArea = { .extent = vk.swapExtent };
+        vkWrite.draw.renderInfo.pColorAttachments = &vk.draw.colorInfo;
 
-        VkRenderingInfo renderInfo{
-            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea = { { 0, 0 }, vk.swapExtent },
-            .layerCount = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &colorInfo
-        };
-
-        vkCmdBeginRendering( vk.d.commandBuffers[0], &renderInfo );
+        vkCmdBeginRendering( vk.d.commandBuffers[0], &vk.draw.renderInfo );
         // draw calls here
         vkCmdEndRendering( vk.d.commandBuffers[0] );
 
-        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = 0;
-        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+        vkWrite.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        vkWrite.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        vkWrite.draw.imageBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        vkWrite.draw.imageBarrier.dstAccessMask = 0;
+        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
 
         vkEndCommandBuffer( vk.d.commandBuffers[0] );
 
-        Flat< VkPipelineStageFlags, 1 > stageFlags{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-        VkSubmitInfo submitInfo = {
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &vk.d.imageSemaphores[semaIdx],
-            .pWaitDstStageMask = stageFlags.data( ),
-            .commandBufferCount = 1,
-            .pCommandBuffers = vk.d.commandBuffers.begin( ),
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &vk.d.presentSemaphores[semaIdx]
-        };
-        vkQueueSubmit( vk.graphicsQueue, 1, &submitInfo, vk.d.flightFences[0] );
+        vkWrite.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
+        vkWrite.draw.submitInfo.pWaitSemaphores = &vk.d.imageSemaphores[semaIdx];
+        vkWrite.draw.submitInfo.pSignalSemaphores =  &vk.d.presentSemaphores[semaIdx];
+        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
 
         vkWrite.draw.presentInfo.pWaitSemaphores = &vk.d.presentSemaphores[semaIdx];
         vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
