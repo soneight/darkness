@@ -69,7 +69,7 @@ run-cxx: $(CXX_TARGET)
 cxx: $(CXX_TARGET)
 # -- target
 $(CXX_TARGET): $(CXX_OBJECT)
-	g++ -lglfw $(CXX_OBJECT) -o $(CXX_TARGET)
+	g++ -lglfw -lGL $(CXX_OBJECT) -o $(CXX_TARGET)
 # -- object
 $(CXX_OBJECT): $(CXX_SOURCE)
 	@mkdir -p $(BUILDS)

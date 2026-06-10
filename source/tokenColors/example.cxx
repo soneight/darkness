@@ -3,6 +3,7 @@
 #ifndef HEADER_HXX
 #define HEADER_HXX
 
+#include <GL/gl.h>
 #include <GLFW/glfw3.h>
 
 namespace son8::darkness {
@@ -11,6 +12,8 @@ namespace son8::darkness {
     template< typename Type_ > using Uni = Type_ &&;
     template< typename Type_ > using Ref = Type_ const &;
     using Bool = bool;
+    using Flag = unsigned;
+    using Void = void;
 } // son8::darkness
 
 #endif//HEADER_HXX
@@ -41,26 +44,46 @@ namespace app {
         GLFWwindow *window_;
     public:
         WindowGLFW( ) {
+            glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
             window_ = glfwCreateWindow( 640, 360, "GLFW Window", nullptr, nullptr );
             if ( not window_ ) throw Exception{ "glfwCreateWindow failed" };
+            activate_context( );
+            glfwSwapInterval( 1 );
         }
-       ~WindowGLFW( ) { }
+       ~WindowGLFW( ) { glfwDestroyWindow( window_ ); }
         operator GLFWwindow *( ) { return window_; }
-        Bool is_running( ) { return not glfwWindowShouldClose( window_ ); }
+        Void activate_context( ) { glfwMakeContextCurrent( window_ ); }
+        Bool is_running( ) const { return not glfwWindowShouldClose( window_ ); }
+        Void swap_buffers( ) const { glfwSwapBuffers( window_); }
     };
+
+    Void draw_gl( );
 }
-int main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) try {
+auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try {
     app::InitGLFW init;
     app::WindowGLFW window;
 
     while ( window.is_running( ) ) {
+        // first is events
         glfwPollEvents( );
+        // middle is draw
+        app::draw_gl( );
+        // last is swap
+        window.swap_buffers( );
     }
 
 } catch ( app::Exception::Ref e ) {
     std::cerr << "std::exception: " << e.what( ) << std::endl;
 } catch ( ... ) {
     std::cerr << "... unhandled exception" << std::endl;
+}
+// definitions
+namespace app {
+    Void draw_gl( ) {
+        glClear( GL_COLOR_BUFFER_BIT );
+        glClearColor( .1f, .4f, .4f, 1.f );
+        glFlush( );
+    }
 }
 // check hidden preprocessor (must be less bright)
 #else //SON8_DARKNESS_NOTDEFINED
