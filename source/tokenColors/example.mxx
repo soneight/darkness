@@ -41,7 +41,6 @@ namespace app {
     template< typename Type, typename Err >
     using Expect = std::expected< Type, Err >;
     using ExpectVoid = Expect< void, String >;
-    using ExpectWindow = Expect< SDL_Window *, String >;
 
     auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> String {
         static_assert( sizeof...( args ) > 0u, "app::throw_error requires at least one parameter" );
@@ -54,9 +53,11 @@ namespace app {
     }
 
     struct DataSDL {
+        using Expected = Expect< void, String >;
         SDL_Window *window;
         bool isInit;
     };
+
     struct InstanceVK {
         VkInstance instance;
         VkSurfaceKHR surface;
@@ -94,41 +95,42 @@ namespace app {
         Unt2 curFrame;
     };
 
-    static DataSDL Global_SDL{ };
     static DataVK Global_VK{ };
 
-    auto init_sdl( ) -> ExpectVoid;
-    void free_sdl( );
+    auto init_sdl( ) -> DataSDL::Expected;
+    void free_sdl( DataSDL const &sdl );
 
-    void init_vk( SDL_Window *window );
+    void init_vk( DataSDL const &sdl );
     void free_vk( );
     void draw_vk( );
 
     struct Free {
+        DataSDL sdl{ };
        ~Free( ) {
             free_vk( );
-            free_sdl( );
+            free_sdl( sdl );
         }
     };
 }
 
 auto main( int argc, char *argv[] ) -> int try {
-    app::Free app_;
+    app::Free app{ };
     using app::String;
-    app::Global_SDL.window = app::init_sdl( )
-    .and_then( []( ) -> app::ExpectWindow {
-        auto window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
-        if ( window ) return window;
+    using app::DataSDL;
+    app::init_sdl( )
+    .and_then( [&app]( ) -> DataSDL::Expected {
+        app.sdl.isInit = true;
+        app.sdl.window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
+        if ( app.sdl.window ) return { };
         return std::unexpected{ "SDL_CreateWindow failed" };
     })
-    .transform( []( SDL_Window *window ) {
+    .transform( []( ) {
         std::println( "init_sdl success" );
-        return window;
     })
-    .transform_error( []( String const &str) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
+    .transform_error( []( String const &str ) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
     .value( );
 
-    app::init_vk( app::Global_SDL.window );
+    app::init_vk( app.sdl );
 
     bool running = true;
     SDL_Event event;
@@ -150,20 +152,17 @@ auto main( int argc, char *argv[] ) -> int try {
 }
 // definitions
 namespace app {
-    auto init_sdl( ) -> ExpectVoid {
-        auto &sdlWrite = Global_SDL;
+    auto init_sdl( ) -> DataSDL::Expected {
         if ( not SDL_Init( SDL_INIT_VIDEO ) ) return std::unexpected{ "SDL_Init failed"s };
-        sdlWrite.isInit = true;
         return { };
     }
 
-    void free_sdl( ) {
-        auto &sdl = Global_SDL;
+    void free_sdl( DataSDL const &sdl ) {
         if ( sdl.window ) SDL_DestroyWindow( sdl.window );
         if ( sdl.isInit ) SDL_Quit( );
     }
 
-    void init_vk( SDL_Window *window ) {
+    void init_vk( DataSDL const &sdl ) {
         auto &vkWrite = app::Global_VK;
         auto const &vk = app::Global_VK;
         // instance
@@ -193,7 +192,7 @@ namespace app {
         };
         CHECK_VK( vkCreateInstance( &instanceInfo, nullptr, &vkWrite.i.instance ) );
         // surface
-        if ( not SDL_Vulkan_CreateSurface( window, vk.i.instance, nullptr, &vkWrite.i.surface) ) {
+        if ( not SDL_Vulkan_CreateSurface( sdl.window, vk.i.instance, nullptr, &vkWrite.i.surface) ) {
             std::println( "SDL_Vulkan_CreateSurface failed: {}", SDL_GetError( ) );
             app::Free app_;
             std::exit( EXIT_FAILURE );
