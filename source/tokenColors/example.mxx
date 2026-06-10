@@ -6,8 +6,8 @@
 // -- std (NOTE modules do not expose std macros)
 #include <cassert> // for macros: assert
 #include <cstdlib> // for macros: EXIT_{SUCCESS,FAILURE}
-// modern modules second
-#ifdef APP_FIX_CLANGD
+// -- std headers when import std are not defined
+#ifndef APP_IMPORT_STD
 #   include <array>
 #   include <cstdint>
 #   include <expected>
@@ -17,8 +17,9 @@
 #   include <print>
 #   include <vector>
 #else
+// modern modules second
 import std;
-#endif//APP_FIX_CLANGD
+#endif//APP_IMPORT_STD
 
 #define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
 
