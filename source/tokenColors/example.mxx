@@ -96,9 +96,43 @@ namespace app {
         APP_CHECK_RANGE_FREE2( flight_fences, flightFences, value ) vkDestroyFence( device, value, nullptr ); %> %>
     };
 
+    struct InitVK final {
+        VkApplicationInfo appInfo{
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = "example.mxx",
+            .apiVersion = VK_API_VERSION_1_3
+        };
+        VkInstanceCreateInfo instanceInfo{
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &appInfo
+        };
+        VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
+            .dynamicRendering = VK_TRUE
+        };
+        VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        VkFenceCreateInfo fenceInfo{
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT
+        };
+    };
+
+    struct DrawVK final {
+        VkPresentInfoKHR presentInfo = {
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .swapchainCount = 1
+        };
+    };
+
     struct DataVK {
+        // create/delete related
         InstanceVK i;
         DeviceVK d;
+        // init/draw related structures
+        InitVK init;
+        DrawVK draw;
+        // shared?
         VkPhysicalDevice physicalDevice;
         VkQueue graphicsQueue;
         VkFormat swapFormat;
@@ -127,6 +161,7 @@ namespace app {
 
 auto main( int argc, char *argv[] ) -> int try {
     app::Free app{ };
+    std::println( "fat VK size: {}", sizeof( app::Global_VK ) );
     using app::String;
     using app::DataSDL;
     app::init_sdl( )
@@ -187,27 +222,14 @@ namespace app {
         for ( auto i = 0u; i < extensionsCount; ++i ) {
             std::println( "\t{}", extensions[i] );
         }
-        // -- app
-        VkApplicationInfo appInfo{
-            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pApplicationName = "example.mxx",
-            .apiVersion = VK_API_VERSION_1_3
-        };
-        // -- instance
-        VkInstanceCreateInfo instanceInfo{
-            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .pApplicationInfo = &appInfo,
-            .enabledLayerCount = layers.size( ),
-            .ppEnabledLayerNames = layers.data( ),
-            .enabledExtensionCount = extensionsCount,
-            .ppEnabledExtensionNames = extensions
-        };
-        CHECK_VK( vkCreateInstance( &instanceInfo, nullptr, &vkWrite.i.instance ) );
+        vkWrite.init.instanceInfo.enabledLayerCount = layers.size( );
+        vkWrite.init.instanceInfo.ppEnabledLayerNames = layers.data( );
+        vkWrite.init.instanceInfo.enabledExtensionCount = extensionsCount;
+        vkWrite.init.instanceInfo.ppEnabledExtensionNames = extensions;
+        CHECK_VK( vkCreateInstance( &vk.init.instanceInfo, nullptr, &vkWrite.i.instance ) );
         // surface
         if ( not SDL_Vulkan_CreateSurface( sdl.window, vk.i.instance, nullptr, &vkWrite.i.surface) ) {
-            std::println( "SDL_Vulkan_CreateSurface failed: {}", SDL_GetError( ) );
-            app::Free app_;
-            std::exit( EXIT_FAILURE );
+            throw_error( "SDL_Vulkan_CreateSurface failed: ", SDL_GetError( ) );
         }
         // device
         // -- physical
@@ -225,15 +247,11 @@ namespace app {
             .queueCount = 1,
             .pQueuePriorities = &queuePriorities
         };
-        VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
-            .dynamicRendering = VK_TRUE
-        };
         // -- extensions
         Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
         VkDeviceCreateInfo deviceInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pNext = &dynamicFeatures,
+            .pNext = &vk.init.dynamicFeatures,
             .queueCreateInfoCount = 1,
             .pQueueCreateInfos = &queueInfo,
             .enabledExtensionCount = deviceExtensions.size( ),
@@ -299,19 +317,14 @@ namespace app {
         CHECK_VK( vkAllocateCommandBuffers( vk.d.device, &bufferInfo, vkWrite.d.commandBuffers.data( ) ) );
         // sync
         // -- semaphores
-        VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
         for ( auto &sema : vkWrite.d.imageSemaphores ) {
-            CHECK_VK( vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &sema ) );
+            CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         for ( auto &sema : vkWrite.d.presentSemaphores ) {
-            CHECK_VK( vkCreateSemaphore( vk.d.device, &semaInfo, nullptr, &sema ) );
+            CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         // -- fences
-        VkFenceCreateInfo fenceInfo{
-            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-            .flags = VK_FENCE_CREATE_SIGNALED_BIT
-        };
-        CHECK_VK( vkCreateFence( vk.d.device, &fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
+        CHECK_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
     }
 
     void free_vk( ) {
@@ -403,14 +416,9 @@ namespace app {
         };
         vkQueueSubmit( vk.graphicsQueue, 1, &submitInfo, vk.d.flightFences[0] );
 
-        VkPresentInfoKHR presentInfo = {
-            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .waitSemaphoreCount = 1,
-            .pWaitSemaphores = &vk.d.presentSemaphores[semaIdx],
-            .swapchainCount = 1,
-            .pSwapchains = &vk.d.swapChain,
-            .pImageIndices = &imageIndex
-        };
-        vkQueuePresentKHR( vk.graphicsQueue, &presentInfo);
+        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.d.presentSemaphores[semaIdx];
+        vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
+        vkWrite.draw.presentInfo.pImageIndices = &imageIndex;
+        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
     }
 }
