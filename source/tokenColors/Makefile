@@ -1,4 +1,4 @@
-.PHONY: usage c run-c mxx run-mxx clean run-web gen-ccjson
+.PHONY: usage c run-c cxx run-cxx mxx run-mxx clean run-web gen-ccjson
 # variables
 BUILDS := $(shell pwd)/build
 SOURCE := $(shell pwd)
@@ -7,6 +7,10 @@ IMPORT := /usr/include/c++/16.1.1
 C_TARGET := $(BUILDS)/program-c
 C_OBJECT := $(BUILDS)/example.o
 C_SOURCE := $(SOURCE)/example.c
+# cxx variables
+CXX_TARGET := $(BUILDS)/program-cxx
+CXX_OBJECT := $(BUILDS)/exampl.o
+CXX_SOURCE := $(SOURCE)/example.cxx
 # mxx variables
 MXX_TARGET := $(BUILDS)/program-mxx
 MXX_OBJECT := $(BUILDS)/example.obj
@@ -57,6 +61,19 @@ $(C_TARGET): $(C_OBJECT)
 $(C_OBJECT): $(C_SOURCE)
 	@mkdir -p $(BUILDS)
 	gcc -std=c90 -pedantic-errors -Werror -Wall -Wextra -c $(C_SOURCE) -o $(C_OBJECT)
+# cxx example related targets
+# -- run
+run-cxx: $(CXX_TARGET)
+	$(CXX_TARGET)
+# -- command
+cxx: $(CXX_TARGET)
+# -- target
+$(CXX_TARGET): $(CXX_OBJECT)
+	g++ -lglfw $(CXX_OBJECT) -o $(CXX_TARGET)
+# -- object
+$(CXX_OBJECT): $(CXX_SOURCE)
+	@mkdir -p $(BUILDS)
+	g++ -std=c++17 -Werror -Wall -Wextra -c $(CXX_SOURCE) -o $(CXX_OBJECT)
 # mxx example related targets
 # -- run
 run-mxx: $(MXX_TARGET)

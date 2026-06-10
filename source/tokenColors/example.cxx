@@ -2,20 +2,15 @@
 // header
 #ifndef HEADER_HXX
 #define HEADER_HXX
-#include <utility>
+
+#include <GLFW/glfw3.h>
 
 namespace son8::darkness {
     template< typename Type_ > using Ptr = Type_ *;
     template< typename Type_ > using Out = Type_ &;
     template< typename Type_ > using Uni = Type_ &&;
     template< typename Type_ > using Ref = Type_ const &;
-
-    template< typename Type_ >
-    void swap( Out< Type_ > lt, Out< Type_ > rt ) {
-        Uni< Type_ > t_ = std::move( lt );
-        lt = std::move( rt );
-        rt = std::move( t_ );
-    }
+    using Bool = bool;
 } // son8::darkness
 
 #endif//HEADER_HXX
@@ -36,18 +31,32 @@ namespace app {
         auto what( ) const noexcept -> ValueType { return msg_; }
     };
 
-    struct Pair final {
-        static constexpr auto first = 1;
-        int second;
+    class InitGLFW final {
+    public:
+        InitGLFW( ) { if ( not glfwInit( ) ) throw Exception{ "glfwInit failed" }; }
+       ~InitGLFW( ) { glfwTerminate( ); }
+    };
+
+    class WindowGLFW final {
+        GLFWwindow *window_;
+    public:
+        WindowGLFW( ) {
+            window_ = glfwCreateWindow( 640, 360, "GLFW Window", nullptr, nullptr );
+            if ( not window_ ) throw Exception{ "glfwCreateWindow failed" };
+        }
+       ~WindowGLFW( ) { }
+        operator GLFWwindow *( ) { return window_; }
+        Bool is_running( ) { return not glfwWindowShouldClose( window_ ); }
     };
 }
-int main( int argc, char *argv[] ) try {
-    if ( argc != 2 ) throw app::Exception{ "app expects exactly one argument" };
-    app::swap( argv[0], argv[1] );
-    if ( argc and argv[0] )
-        std::cout << argv[0] << std::endl;
-    app::Pair pair;
-    std::cout << pair.second;
+int main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) try {
+    app::InitGLFW init;
+    app::WindowGLFW window;
+
+    while ( window.is_running( ) ) {
+        glfwPollEvents( );
+    }
+
 } catch ( app::Exception::Ref e ) {
     std::cerr << "std::exception: " << e.what( ) << std::endl;
 } catch ( ... ) {
