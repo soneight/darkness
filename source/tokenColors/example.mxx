@@ -46,12 +46,11 @@ namespace app {
     using CStr = char const *;
     using String = std::string;
     using StringView = std::string_view;
-    template< typename Type >
-    using Grow = std::vector< Type >;
-    template< typename Type, Size size >
-    using Flat = std::array< Type, size >;
-    template< typename Type, typename Err >
-    using Expect = std::expected< Type, Err >;
+    template< typename Type > using Out = Type &;
+    template< typename Type > using Ref = Type const &;
+    template< typename Type > using Grow = std::vector< Type >;
+    template< typename Type, Size size > using Flat = std::array< Type, size >;
+    template< typename Type, typename Err > using Expect = std::expected< Type, Err >;
     using ExpectVoid = Expect< void, String >;
 
     auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> String {
@@ -201,16 +200,18 @@ namespace app {
     static DataVK Global_VK{ };
 
     auto init_sdl( ) -> DataSDL::Expected;
-    void free_sdl( DataSDL const &sdl );
+    void free_sdl( Ref< DataSDL > sdl );
 
-    void init_vk( DataSDL const &sdl );
-    void free_vk( );
-    void draw_vk( );
+    void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite );
+    void free_vk( Ref< DataVK > vk );
+    void draw_vk( Out< DataVK > vkWrite );
 
     struct Free {
         DataSDL sdl{ };
+        // to avoid allocating fat vk struct on each program run
+        DataVK &vk = Global_VK;
        ~Free( ) {
-            free_vk( );
+            free_vk( vk );
             free_sdl( sdl );
         }
     };
@@ -218,7 +219,7 @@ namespace app {
 
 auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try {
     app::Free app{ };
-    std::println( "fat VK size: {}", sizeof( app::Global_VK ) );
+    std::println( "fat VK size: {}", sizeof( app.vk ) );
     using app::String;
     using app::DataSDL;
     app::init_sdl( )
@@ -234,7 +235,7 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     .transform_error( []( String const &str ) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
     .value( );
 
-    app::init_vk( app.sdl );
+    app::init_vk( app.sdl, app.vk );
 
     bool running = true;
     SDL_Event event;
@@ -243,7 +244,7 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
         while ( SDL_PollEvent( &event ) ) {
             if ( event.type == SDL_EVENT_QUIT ) running = false;
         }
-        app::draw_vk( );
+        app::draw_vk( app.vk );
     }
 
     return EXIT_SUCCESS;
@@ -261,14 +262,13 @@ namespace app {
         return { };
     }
 
-    void free_sdl( DataSDL const &sdl ) {
+    void free_sdl( Ref< DataSDL > sdl ) {
         if ( sdl.window ) SDL_DestroyWindow( sdl.window );
         if ( sdl.isInit ) SDL_Quit( );
     }
 
-    void init_vk( DataSDL const &sdl ) {
-        auto &vkWrite = app::Global_VK;
-        auto const &vk = app::Global_VK;
+    void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite ) {
+        auto const &vk = vkWrite;
         // instance
         // -- layers
         Flat< CStr, 1 > layers{ "VK_LAYER_KHRONOS_validation" };
@@ -353,9 +353,8 @@ namespace app {
         CHECK_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
     }
 
-    void free_vk( ) {
+    void free_vk( Ref< DataVK > vk ) {
         static constexpr Bool Check = true; // NOTE: must be true, helper
-        auto const &vk = Global_VK;
         if ( not vk.d.device ) goto instance_;
         vkDeviceWaitIdle( vk.d.device );
         vk.d.free_flight_fences< Check >( );
@@ -376,9 +375,8 @@ namespace app {
         return;
     }
 
-    void draw_vk( ) {
-        auto &vkWrite = Global_VK;
-        auto const &vk = Global_VK;
+    void draw_vk( Out< DataVK > vkWrite ) {
+        auto const &vk = vkWrite;
 
         vkWaitForFences( vk.d.device, 1, &vk.d.flightFences[0], VK_TRUE, UINT64_MAX );
         vkResetFences( vk.d.device, 1, &vk.d.flightFences[0] );
