@@ -3,7 +3,8 @@
 #ifndef HEADER_H
 #define HEADER_H
 /* -- macros */
-#define SON8_CSTRSIZE( str ) ( strlen( str ) + 1 )
+#include <string.h>
+#define SON8_CSTRSIZE( str ) ( strlen( str ) + 1u )
 /* ---- extern c */
 #ifdef __cplusplus
 #define SON8_EXTERN_CBEG extern "C" {
@@ -39,6 +40,9 @@
 #if UINT_MAX == 0xFFFFFFFFu
 #define SON8INT2 signed int
 #define SON8UNT2 unsigned int
+#elif ULONG_MAX == 0xFFFFFFFFul
+#define SON8INT2 signed long
+#define SON8UNT2 unsigned long
 #else
 #error "4 byte integer is not supported or TODO platform specific integer definition"
 #endif
@@ -60,14 +64,14 @@ typedef SON8UNT2 Son8Unt2;
 typedef SON8INT3 Son8Int3;
 typedef SON8UNT3 Son8Unt3;
 typedef void Son8Void;
-typedef unsigned Son8Bool;
+typedef Son8Unt2 Son8Bool;
 typedef size_t Son8Size;
 typedef char *Son8CStr;
 typedef char const *Son8CCStr;
 
 SON8_EXTERN_CBEG
 
-#define SON8TEXT_SMALL_SIZE 16
+#define SON8TEXT_SMALL_SIZE 16u
 /* NOTE: size includes null terminated character */
 struct Son8Text {
     union {
@@ -95,15 +99,12 @@ Son8Bool    son8text_valid( Son8TextVal val );
 SON8_EXTERN_CEND
 #endif/*HEADER_H*/
 /* source */
-/* TODO: rewrite using X11 directly */
-#include <GLFW/glfw3.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h> /* XSizeHints */
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 SON8_EXTERN_CBEG
 
@@ -137,8 +138,7 @@ int AppErrorX11;
 
 int app_error_handler_x11( Display *dpy, XErrorEvent *err );
 
-struct AppWindow app_create_window( Son8Size xSize, Son8Size ySize, Son8CCStr title );
-Son8Void app_delete_window( struct AppWindow appWindow );
+SON8_EXTERN_CEND
 
 int main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
@@ -186,6 +186,7 @@ int main( int argc, char *argv[] ) {
         switch ( x11.event.type ) {
         case Expose: break;
         case KeyPress: break;
+        case ButtonPress: break;
         case ClientMessage: {
             if ( (Son8Unt3)x11.event.xclient.data.l[0] == x11.wmCloseAtom ) x11.isClosing = 1;
                 break;
@@ -209,6 +210,9 @@ error_argc_:
     }
     return EXIT_SUCCESS;
 }
+
+SON8_EXTERN_CBEG
+
 /* -- app definitions */
 int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
     char text[8];

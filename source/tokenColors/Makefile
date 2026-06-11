@@ -53,8 +53,8 @@ gen-ccjson:
 	@echo -e "}]"                                                     >> $(GEN_CCJSON)
 # c example related targets
 # -- run
-run-c: $(C_TARGET)
-	$(C_TARGET)
+run-c  : $(C_TARGET)
+	@$(C_TARGET)
 # -- command
 c: $(C_TARGET)
 # -- target
@@ -67,7 +67,7 @@ $(C_OBJECT): $(C_SOURCE)
 # cxx example related targets
 # -- run
 run-cxx: $(CXX_TARGET)
-	$(CXX_TARGET)
+	@$(CXX_TARGET)
 # -- command
 cxx: $(CXX_TARGET)
 # -- target
@@ -80,7 +80,7 @@ $(CXX_OBJECT): $(CXX_SOURCE)
 # mxx example related targets
 # -- run
 run-mxx: $(MXX_TARGET)
-	$(MXX_TARGET)
+	@$(MXX_TARGET)
 # -- command
 mxx: $(MXX_TARGET)
 # -- link executable
@@ -99,4 +99,4 @@ clean:
 	@git restore $(BUILDS)/.gitignore
 # web related targets
 run-web:
-	node $(WEB_SOURCE)
+	@node $(WEB_SOURCE)
