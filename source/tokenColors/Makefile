@@ -56,7 +56,7 @@ run-c: $(C_TARGET)
 c: $(C_TARGET)
 # -- target
 $(C_TARGET): $(C_OBJECT)
-	gcc -lglfw -lGL $(C_OBJECT) -o $(C_TARGET)
+	gcc -lX11 $(C_OBJECT) -o $(C_TARGET)
 # -- object
 $(C_OBJECT): $(C_SOURCE)
 	@mkdir -p $(BUILDS)

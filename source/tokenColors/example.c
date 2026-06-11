@@ -50,7 +50,6 @@
 #define SON8UNT3 unsigned long
 #endif
 /* -- aliases */
-typedef unsigned Son8Bool;
 typedef SON8CHAR Son8Char;
 typedef SON8INT0 Son8Int0;
 typedef SON8UNT0 Son8Unt0;
@@ -60,6 +59,8 @@ typedef SON8INT2 Son8Int2;
 typedef SON8UNT2 Son8Unt2;
 typedef SON8INT3 Son8Int3;
 typedef SON8UNT3 Son8Unt3;
+typedef void Son8Void;
+typedef unsigned Son8Bool;
 typedef size_t Son8Size;
 typedef char *Son8CStr;
 typedef char const *Son8CCStr;
@@ -96,6 +97,8 @@ SON8_EXTERN_CEND
 /* source */
 /* TODO: rewrite using X11 directly */
 #include <GLFW/glfw3.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h> /* XSizeHints */
 
 #include <assert.h>
 #include <stdio.h>
@@ -114,45 +117,90 @@ enum Error {
 
 static Son8CCStr Text_Error[Error_Last_] = {
     "none",
-    "arguments count",
-    "glwf init",
-    "window create",
+    "arguments count failed",
+    "XOpenDisplay failed",
+    "XCreateSimpleWindow failed",
 };
+
+struct AppX11 {
+    Display *display;
+    int screen;
+    Window root;
+    Window window;
+    XEvent event;
+    Son8Bool isClosing;
+    XSizeHints *sizeHints;
+    Atom wmCloseAtom;
+};
+
+int AppErrorX11;
+
+int app_error_handler_x11( Display *dpy, XErrorEvent *err );
+
+struct AppWindow app_create_window( Son8Size xSize, Son8Size ySize, Son8CCStr title );
+Son8Void app_delete_window( struct AppWindow appWindow );
 
 int main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
-    GLFWwindow *window;
     Son8TextVal name;
-    /* code */
+    struct AppX11 x11;
     Son8Size error = Error_None;
+    /* code */
+    memset(&x11, 0, sizeof(x11));
     /* checking arguments */
     if ( argc > 1 && ( error = Error_Argc ) ) goto error_argc_;
-    /* initializing GLFW */
-    if ( !glfwInit(  ) && ( error = Error_Init ) ) goto error_init_;
-    puts( "glfwInit success" );
-    /* creating window */
     son8text_create( &name, argv[0] );
     puts( name.data );
-    window = glfwCreateWindow( 640, 360, name.data, NULL, NULL );
-    if ( !window && ( error = Error_Window ) ) goto error_window_;
-    puts( "glfwCreateWindow success" );
-    glfwMakeContextCurrent( window );
+    /* init display */
+    x11.display = XOpenDisplay( NULL );
+    if ( x11.display == NULL && ( error = Error_Init ) ) goto error_init_;
+    puts( "XOpenDisplay success" );
+    XSetErrorHandler( app_error_handler_x11 );
+    /* creating window */
+    x11.screen = DefaultScreen( x11.display );
+    x11.root = RootWindow( x11.display, x11.screen );
+    x11.window = XCreateSimpleWindow( x11.display, x11.root, 0, 0, 640, 360, 0, 0, 0);
+    XStoreName( x11.display, x11.window, "X11 Window" );
+    XSync( x11.display, False );
+    if ( AppErrorX11 && ( error = Error_Window ) ) goto error_window_;
+    puts( "XCreateSimpleWindow success" );
+    XSetErrorHandler( NULL );
 
-    while ( !glfwWindowShouldClose( window ) ) {
-        /* NOTE: first GLFW call polling events before rendering */
-        glfwPollEvents( );
-        /* TODO: rewrite using software rendering with only gl call would be DrawPixels */
-        glClear( GL_COLOR_BUFFER_BIT );
-        glClearColor( .1f, .4f, .4f, 0.f );
-        /* NOTE: second GLFW call swapping buffers after rendering */
-        glfwSwapBuffers( window );
+    x11.sizeHints = XAllocSizeHints( );
+    if ( x11.sizeHints ) {
+        x11.sizeHints->flags = PMinSize | PMaxSize;
+        x11.sizeHints->min_width = x11.sizeHints->max_width = 640;
+        x11.sizeHints->min_height = x11.sizeHints->max_height = 360;
+        XSetWMNormalHints(x11.display, x11.window, x11.sizeHints );
+        XFree( x11.sizeHints );
+    }
+    x11.wmCloseAtom = XInternAtom( x11.display, "WM_DELETE_WINDOW", False );
+    XSetWMProtocols( x11.display, x11.window, &x11.wmCloseAtom, 1 );
+    /* processing events */
+    XSelectInput( x11.display, x11.window, ExposureMask | KeyPressMask | ButtonPressMask );
+
+    XMapWindow( x11.display, x11.window );
+    while ( !x11.isClosing ) {
+        /* NOTE: first polling events before rendering */
+        XNextEvent( x11.display, &x11.event );
+        switch ( x11.event.type ) {
+        case Expose: break;
+        case KeyPress: break;
+        case ClientMessage: {
+            if ( (Son8Unt3)x11.event.xclient.data.l[0] == x11.wmCloseAtom ) x11.isClosing = 1;
+                break;
+        }
+            default: break;
+        }
+        /* NOTE: second swapping buffers after rendering */
     }
     /* cleaning */
+    XDestroyWindow( x11.display, x11.window );
 error_window_:
+    XCloseDisplay( x11.display );
+error_init_:
     name = son8text_delete( name );
     assert( son8text_valid( name ) == 0u );
-error_init_:
-    glfwTerminate( );
 error_argc_:
     assert( error < Error_Last_ );
     if ( error != Error_None ) {
@@ -161,6 +209,16 @@ error_argc_:
     }
     return EXIT_SUCCESS;
 }
+/* -- app definitions */
+int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
+    char text[8];
+    XGetErrorText( dpy, err->error_code, text, sizeof( text ) );
+    text[7] = 0;
+    fprintf( stderr, "app_error_handler_x11 error text: %s", text );
+    AppErrorX11 = err->error_code;
+    return 0;
+}
+
 /* -- static */
 static Son8TextVal Son8Text_Null;
 static Son8TextVal son8text_Error( void )
