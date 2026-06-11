@@ -143,7 +143,7 @@ namespace app {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY
         };
-        VkSemaphoreCreateInfo semaInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+        VkSemaphoreCreateInfo semaInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
         VkFenceCreateInfo fenceInfo{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT
@@ -151,7 +151,7 @@ namespace app {
     };
 
     struct DrawVK final {
-        VkCommandBufferBeginInfo beginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
         VkRenderingAttachmentInfo colorInfo{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -216,7 +216,7 @@ namespace app {
     };
 }
 
-auto main( int argc, char *argv[] ) -> int try {
+auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try {
     app::Free app{ };
     std::println( "fat VK size: {}", sizeof( app::Global_VK ) );
     using app::String;
