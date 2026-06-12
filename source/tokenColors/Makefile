@@ -63,7 +63,7 @@ $(C_TARGET): $(C_OBJECT)
 # -- object
 $(C_OBJECT): $(C_SOURCE)
 	@mkdir -p $(BUILDS)
-	gcc -std=c90 $(WARNER) -c $(C_SOURCE) -o $(C_OBJECT)
+	gcc -g -std=c90 $(WARNER) -c $(C_SOURCE) -o $(C_OBJECT)
 # cxx example related targets
 # -- run
 run-cxx: $(CXX_TARGET)

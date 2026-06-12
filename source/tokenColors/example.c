@@ -131,6 +131,10 @@ static Son8CCStr Text_Error[Error_Last_] = {
     "XCreateSimpleWindow failed",
 };
 
+struct AppFrameBuffer {
+    Son8Unt2 data[APP_XSIZE][APP_YSIZE];
+};
+
 struct AppX11 {
     Display *display;
     int screen;
@@ -145,7 +149,9 @@ struct AppX11 {
     XImage *image;
     Visual *imageVisual;
     int imageDepth;
-    Son8Unt2 frameBuffer[ APP_XSIZE * APP_YSIZE * 4u ];
+    struct AppFrameBuffer frameBuffers[2];
+    struct AppFrameBuffer *waitBuffer;
+    struct AppFrameBuffer *drawBuffer;
     GC graphicContext;
     /* TODO: double buffering */
 };
@@ -166,6 +172,8 @@ int main( int argc, char *argv[] ) {
     struct AppX11 *x11Write = &App_X11;
     struct AppX11 const *x11 = &App_X11;
     Son8Size error = Error_None;
+    x11Write->drawBuffer = &x11Write->frameBuffers[0];
+    x11Write->waitBuffer = &x11Write->frameBuffers[1];
     /* code */
     /* checking arguments */
     if ( argc > 1 && ( error = Error_Argc ) ) goto error_argc_;
@@ -204,7 +212,8 @@ int main( int argc, char *argv[] ) {
 
     x11Write->imageVisual = DefaultVisual( x11->display, x11->screen );
     x11Write->imageDepth = DefaultDepth( x11->display, x11->screen );
-    x11Write->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)x11->frameBuffer, APP_XSIZE, APP_YSIZE, 32, 0 );
+    /* NOTE: first should be drawBuffer, after that image data should point only to waitBuffer */
+    x11Write->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)x11Write->drawBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
     x11Write->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
 
     XMapWindow( x11->display, x11->window );
@@ -233,8 +242,11 @@ int main( int argc, char *argv[] ) {
             fflush( logFile );
             x11Write->prevFrame = x11->currFrame;
         }
-        ++x11Write->currFrame;
         /* NOTE: second swapping buffers after rendering */
+        ++x11Write->currFrame;
+        x11Write->drawBuffer = &x11Write->frameBuffers[x11->currFrame & 1u];
+        x11Write->waitBuffer = &x11Write->frameBuffers[(x11->currFrame + 1) & 1u];
+        x11Write->image->data = (char *)x11Write->waitBuffer->data;
     }
     /* cleaning */
     XDestroyWindow( x11->display, x11->window );
@@ -259,9 +271,10 @@ SON8_EXTERN_CBEG
 /* -- app definitions */
 void app_draw( struct AppX11 *x11Write ) {
     Son8Size x, y;
-    for ( y = 0u; y < APP_YSIZE; ++y ) {
-        for ( x = 0u; x < APP_XSIZE; ++x ) {
-            x11Write->frameBuffer[ y * APP_XSIZE + x ] = 0xFF104040u;
+    /* TODO: write NASM function to handle logic of loop and writing */
+    for ( x = 0u; x < APP_XSIZE; ++x ) {
+        for ( y = 0u; y < APP_YSIZE; ++y ) {
+            x11Write->drawBuffer->data[x][y] = 0xFF104040u;
         }
     }
 }
