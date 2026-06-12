@@ -18,9 +18,10 @@ namespace son8::darkness {
 
 #endif//HEADER_HXX
 // source
-// TODO: add graphics using glfw with modern OpenGL
+#include <ctime>
 #include <exception>
 #include <iostream>
+
 namespace app {
     using namespace son8::darkness;
 
@@ -43,12 +44,14 @@ namespace app {
     class WindowGLFW final {
         GLFWwindow *window_;
     public:
+        static constexpr auto Size_X = 640u;
+        static constexpr auto Size_Y = 360u;
         WindowGLFW( ) {
             glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
-            window_ = glfwCreateWindow( 640, 360, "GLFW Window", nullptr, nullptr );
+            window_ = glfwCreateWindow( Size_X, Size_Y, "GLFW Window", nullptr, nullptr );
             if ( not window_ ) throw Exception{ "glfwCreateWindow failed" };
             activate_context( );
-            glfwSwapInterval( 1 );
+            glfwSwapInterval( 0 );
         }
        ~WindowGLFW( ) { glfwDestroyWindow( window_ ); }
         operator GLFWwindow *( ) { return window_; }
@@ -60,16 +63,31 @@ namespace app {
     Void draw_gl( );
 }
 auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try {
+    using Window = app::WindowGLFW;
     app::InitGLFW init;
     app::WindowGLFW window;
+    auto currFrame = 0u;
+    auto prevFrame = currFrame;
+
+    glViewport( 0, 0, Window::Size_X, Window::Size_Y );
 
     while ( window.is_running( ) ) {
+        auto timeBeg = std::time( nullptr );
         // first is events
         glfwPollEvents( );
         // middle is draw
         app::draw_gl( );
         // last is swap
         window.swap_buffers( );
+
+        auto timeEnd = std::time( nullptr );
+
+        auto timeDiff = (intmax_t)timeEnd - (intmax_t)timeBeg;
+        if ( timeDiff ) {
+            std::cout << "fps (TODO): " << ( currFrame - prevFrame ) / timeDiff << std::endl;
+            prevFrame = currFrame;
+        }
+        ++currFrame;
     }
 
 } catch ( app::Exception::Ref e ) {

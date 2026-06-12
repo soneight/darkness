@@ -76,7 +76,7 @@ $(CXX_TARGET): $(CXX_OBJECT)
 # -- object
 $(CXX_OBJECT): $(CXX_SOURCE)
 	@mkdir -p $(BUILDS)
-	g++ -std=c++17 $(WARNER) -c $(CXX_SOURCE) -o $(CXX_OBJECT)
+	g++ -g -std=c++17 $(WARNER) -c $(CXX_SOURCE) -o $(CXX_OBJECT)
 # mxx example related targets
 # -- run
 run-mxx: $(MXX_TARGET)
