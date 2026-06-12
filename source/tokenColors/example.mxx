@@ -208,14 +208,15 @@ namespace app {
 
     static DataVK Global_VK{ };
 
-    auto init_sdl( ) -> DataSDL::Expected;
     void free_sdl( Ref< DataSDL > sdl );
+    auto init_sdl( ) -> DataSDL::Expected;
     void poll_sdl( Out< DataSDL > sdlWrite );
 
-    void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite );
     void free_vk( Ref< DataVK > vk );
+    void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite );
+    void sync_vk( Out< DataVK > vkWrite );
     void draw_vk( Out< DataVK > vkWrite );
-    void swap_vk( Out< DataVK > vkWrite );
+    void show_vk( Out< DataVK > vkWrite );
 
     struct Free {
         DataSDL sdl{ };
@@ -252,23 +253,26 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     auto prevFrame = app.vk.curFrame;
     std::time_t timeBegSec, timeEndSec;
     std::time( &timeBegSec );
-    // NOTE: pre-swap to prepare synchronization
-    app::swap_vk( app.vkWrite );
+
     while ( not app.sdl.isClosing ) {
-        // NOTE: first poll events before rendering
+        // NOTE: poll events before rendering
         app::poll_sdl(app.sdl );
-        // NOTE: mezzo in between process rendering
+        // NOTE: synchronize before rendering
+        app::sync_vk( app.vkWrite );
+        // NOTE: in between process rendering
         app::draw_vk( app.vkWrite );
-        // NOTE: final swap buffers after rendering
-        app::swap_vk( app.vkWrite );
+        // NOTE: present-swap after rendering
+        app::show_vk( app.vkWrite );
         // timer
         std::time( &timeEndSec );
         auto timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
+
         if ( timeDiffSec ) {
             std::println( "fps (TODO): {}", ( app.vk.curFrame - prevFrame ) / timeDiffSec );
             prevFrame = app.vk.curFrame;
             timeBegSec = timeEndSec;
         }
+
         ++app.vkWrite.curFrame;
     }
 
@@ -283,14 +287,15 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
 
 // definitions
 namespace app {
-    auto init_sdl( ) -> DataSDL::Expected {
-        if ( not SDL_Init( SDL_INIT_VIDEO ) ) return std::unexpected{ "SDL_Init failed"s };
-        return { };
-    }
 
     void free_sdl( Ref< DataSDL > sdl ) {
         if ( sdl.window ) SDL_DestroyWindow( sdl.window );
         if ( sdl.isClosing ) SDL_Quit( );
+    }
+
+    auto init_sdl( ) -> DataSDL::Expected {
+        if ( not SDL_Init( SDL_INIT_VIDEO ) ) return std::unexpected{ "SDL_Init failed"s };
+        return { };
     }
 
     void poll_sdl( Out< DataSDL > sdlWrite ) {
@@ -298,6 +303,28 @@ namespace app {
         while ( SDL_PollEvent( &sdlWrite.event ) ) {
             if ( event.type == SDL_EVENT_QUIT ) sdlWrite.isClosing = true;
         }
+    }
+
+    void free_vk( Ref< DataVK > vk ) {
+        static constexpr Bool Check = true; // NOTE: must be true, helper
+        if ( not vk.d.device ) goto instance_;
+        vkDeviceWaitIdle( vk.d.device );
+        vk.d.free_flight_fences< Check >( );
+        vk.d.free_present_semaphores< Check >( );
+        vk.d.free_image_semaphores< Check >( );
+        vk.d.free_swap_image_views< Check >( );
+        vk.d.free_swap_chain< Check >( );
+        if ( not vk.d.commandPool ) goto device_;
+        vk.d.free_command_buffers( );
+        vk.d.free_command_pool(  );
+    device_:
+        vk.d.free_device( );
+    instance_:
+        if ( not vk.i.instance ) goto return_;
+        vk.i.free_surface< Check >( );
+        vk.i.free_instance( );
+    return_:
+        return;
     }
 
     void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite ) {
@@ -389,29 +416,7 @@ namespace app {
         CHECK_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
     } // init_vk
 
-    void free_vk( Ref< DataVK > vk ) {
-        static constexpr Bool Check = true; // NOTE: must be true, helper
-        if ( not vk.d.device ) goto instance_;
-        vkDeviceWaitIdle( vk.d.device );
-        vk.d.free_flight_fences< Check >( );
-        vk.d.free_present_semaphores< Check >( );
-        vk.d.free_image_semaphores< Check >( );
-        vk.d.free_swap_image_views< Check >( );
-        vk.d.free_swap_chain< Check >( );
-        if ( not vk.d.commandPool ) goto device_;
-        vk.d.free_command_buffers( );
-        vk.d.free_command_pool(  );
-    device_:
-        vk.d.free_device( );
-    instance_:
-        if ( not vk.i.instance ) goto return_;
-        vk.i.free_surface< Check >( );
-        vk.i.free_instance( );
-    return_:
-        return;
-    }
-
-    void swap_vk( Out< DataVK > vkWrite ) {
+    void sync_vk( Out< DataVK > vkWrite ) {
         auto const &vk = vkWrite;
         // sync cpu/gpu
         vkWaitForFences( vk.d.device, 1, vk.d.flightFences.begin( ), VK_TRUE, UINT64_MAX );
@@ -420,6 +425,15 @@ namespace app {
         vkWrite.swap.imageSemaphore = vk.d.imageSemaphores[vk.curFrame & 0b11u];
         vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.swap.imageSemaphore, VK_NULL_HANDLE, &vkWrite.swap.imageIndex );
         vkWrite.swap.presentSemaphore = vk.d.presentSemaphores[vk.swap.imageIndex];
+    }
+
+    void show_vk( Out< DataVK > vkWrite ) {
+        auto const &vk = vkWrite;
+        // sync monitor?
+        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.swap.presentSemaphore;
+        vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
+        vkWrite.draw.presentInfo.pImageIndices = &vk.swap.imageIndex;
+        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
     }
 
     void draw_vk( Out< DataVK > vkWrite ) {
@@ -459,11 +473,7 @@ namespace app {
         vkWrite.draw.submitInfo.pWaitSemaphores = &imageSemaphore;
         vkWrite.draw.submitInfo.pSignalSemaphores = &presentSemaphore;
         vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
-        // sync monitor?
-        vkWrite.draw.presentInfo.pWaitSemaphores = &presentSemaphore;
-        vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
-        vkWrite.draw.presentInfo.pImageIndices = &imageIndex;
-        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
+
     } // draw_wk
 
 } // namespace app
