@@ -66,37 +66,9 @@ typedef SON8UNT3 Son8Unt3;
 typedef void Son8Void;
 typedef Son8Unt2 Son8Bool;
 typedef size_t Son8Size;
-typedef char *Son8CStr;
-typedef char const *Son8CCStr;
+typedef char *Son8CPtr;
+typedef char const *Son8CStr;
 
-SON8_EXTERN_CBEG
-
-#define SON8TEXT_SMALL_SIZE 16u
-/* NOTE: size includes null terminated character */
-struct Son8Text {
-    union {
-        struct {
-            char buf_[SON8TEXT_SMALL_SIZE];
-        } small_;
-        struct {
-            Son8CStr ptr_;
-            Son8Size held_;
-        } large_;
-    } data_;
-    Son8CStr data;
-    Son8Size size;
-};
-
-typedef struct Son8Text *Son8TextPtr;
-typedef struct Son8Text Son8TextVal;
-
-Son8Size    son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr );
-Son8TextVal son8text_delete( Son8TextVal val );
-Son8TextVal son8text_empty( void );
-Son8Size    son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal );
-Son8Bool    son8text_valid( Son8TextVal val );
-
-SON8_EXTERN_CEND
 #endif/*HEADER_H*/
 /* source */
 #include <X11/Xlib.h>
@@ -123,7 +95,7 @@ enum Error {
     Error_Last_
 };
 
-static Son8CCStr Text_Error[Error_Last_] = {
+static Son8CStr Text_Error[Error_Last_] = {
     "none",
     "arguments count failed",
     "fopen failed",
@@ -152,12 +124,11 @@ struct AppX11 {
     struct AppFrameBuffer *waitBuffer;
     struct AppFrameBuffer *drawBuffer;
     GC graphicContext;
-    /* TODO: double buffering */
 };
 /* globals */
 int App_Error_X11;
 struct AppX11 App_X11;
-
+/* declarations */
 int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
 void app_draw( struct AppX11 *x11Write );
 
@@ -165,7 +136,6 @@ SON8_EXTERN_CEND
 
 int main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
-    Son8TextVal name;
     time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
     Son8Unt3 prevFrame = 0u;
@@ -175,13 +145,15 @@ int main( int argc, char *argv[] ) {
     x11Write->drawBuffer = &x11Write->frameBuffers[0];
     x11Write->waitBuffer = &x11Write->frameBuffers[1];
     /* code */
+    puts( argv[0] );
     /* checking arguments */
-    if ( argc > 1 && ( error = Error_Argc ) ) goto error_argc_;
-    son8text_create( &name, argv[0] );
-    puts( name.data );
-    /* open log file */
-    logFile = fopen( "temp.clog.txt", "w" );
-    if ( !logFile && (error = Error_Log ) ) goto error_log_;
+    if ( argc > 1 && ( argv[1][0] != '-' || argv[1][1] != 'l' || argv[1][2] != '\0' ) && ( error = Error_Argc ) ) goto error_argc_;
+    if ( argc == 2 ) {
+        /* open log file */
+        logFile = fopen( "temp.clog.txt", "w" );
+        if ( !logFile && (error = Error_Log ) ) goto error_log_;
+        puts( "logging into <temp.clog.txt> file success" );
+    } else logFile = stdout;
     /* init display */
     x11Write->display = XOpenDisplay( NULL );
     if ( x11->display == NULL && ( error = Error_Init ) ) goto error_init_;
@@ -258,8 +230,6 @@ error_window_:
 error_init_:
     fclose( logFile );
 error_log_:
-    name = son8text_delete( name );
-    assert( son8text_valid( name ) == 0u );
 error_argc_:
     assert( error < Error_Last_ );
     if ( error != Error_None ) {
@@ -291,90 +261,5 @@ int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
     assert( App_Error_X11 && "App Error X11 must be not equal zero" );
     return 0;
 }
-
-/* -- static */
-static Son8TextVal Son8Text_Null;
-static Son8TextVal son8text_Error( void )
-{ return Son8Text_Null; }
-static Son8Size son8text_Error_Size( Son8TextPtr outPtr ) {
-    *outPtr = Son8Text_Null;
-    return outPtr->size;
-}
-static Son8Size son8text_Empty_Size( Son8TextPtr outPtr ) {
-    *outPtr = son8text_empty( );
-    return outPtr->size;
-}
-static Son8Size son8text_Expand_Held( Son8Size size ) {
-    Son8Unt0 shift = SON8TEXT_SMALL_SIZE >> 4u;
-    return ( size >> shift ) << ( shift + 1u );
-}
-/* -- definitions */
-Son8Size son8text_create( Son8TextPtr outPtr, Son8CCStr ccStr ) {
-    Son8Size capacity;
-
-    assert( ccStr != NULL );
-
-    if ( ccStr[0] == '\0' ) return son8text_Empty_Size( outPtr );
-
-    outPtr->size = strlen( ccStr ) + 1;
-
-    if ( outPtr->size > SON8TEXT_SMALL_SIZE ) {
-        outPtr->data_.large_.held_ = son8text_Expand_Held( outPtr->size );
-        outPtr->data_.large_.ptr_ = (char *)malloc( outPtr->data_.large_.held_ );
-
-        if ( outPtr->data_.large_.ptr_ == NULL ) return son8text_Error_Size( outPtr );
-
-        outPtr->data = outPtr->data_.large_.ptr_;
-        capacity = outPtr->data_.large_.held_;
-    } else {
-        outPtr->data = outPtr->data_.small_.buf_;
-        capacity = SON8TEXT_SMALL_SIZE;
-    }
-
-    memcpy( outPtr->data, ccStr, outPtr->size );
-    return capacity;
-}
-
-Son8TextVal son8text_delete( Son8TextVal val ) {
-
-    if ( val.size > SON8TEXT_SMALL_SIZE ) free( val.data );
-
-    return son8text_Error( );
-}
-
-Son8TextVal son8text_empty( void ) {
-    Son8TextVal empty = Son8Text_Null;
-
-    empty.size = 1u;
-    empty.data = Son8Text_Null.data_.small_.buf_;
-
-    return empty;
-}
-/* NOTE: on copy allocate upto size, not capacity(held_) */
-Son8Size son8text_copy( Son8TextPtr outPtr, Son8TextVal inVal ) {
-    Son8Size capacity;
-    if ( inVal.data == NULL ) goto error_;
-
-    if ( inVal.size > SON8TEXT_SMALL_SIZE ) {
-        outPtr->data_.large_.ptr_ = (Son8CStr)malloc( inVal.size );
-
-        if ( outPtr->data_.large_.ptr_ == NULL ) goto error_;
-
-        outPtr->data_.large_.held_ = inVal.size;
-        outPtr->data = outPtr->data_.large_.ptr_;
-        capacity = outPtr->data_.large_.held_;
-    } else {
-        outPtr->data = outPtr->data_.small_.buf_;
-        capacity = SON8TEXT_SMALL_SIZE;
-    }
-    outPtr->size = inVal.size;
-    memcpy( outPtr->data, inVal.data, inVal.size );
-    return capacity;
-error_:
-    return son8text_Error_Size( outPtr );
-}
-
-Son8Bool son8text_valid( Son8TextVal val )
-{ return val.data != NULL && val.size != 0u; }
 
 SON8_EXTERN_CEND

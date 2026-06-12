@@ -327,6 +327,7 @@ namespace app {
         Unt2 deviceCount;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, nullptr );
         std::println( "devices count: {}", deviceCount );
+        if ( not deviceCount ) throw_error( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
         Flat< VkPhysicalDevice, 1 > devices;
         deviceCount = 1;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) );
