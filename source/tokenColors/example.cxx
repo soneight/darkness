@@ -70,24 +70,24 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     auto prevFrame = currFrame;
 
     glViewport( 0, 0, Window::Size_X, Window::Size_Y );
-    auto timeBeg = std::time( nullptr );
+    std::time_t timeBegSec, timeEndSec;
+    std::time( &timeBegSec );
     while ( window.is_running( ) ) {
-
-        // first is events
+        // NOTE: first poll events before rendering
         glfwPollEvents( );
-        // middle is draw
+        // NOTE: mezzo in between process rendering
         app::draw_gl( );
-        // last is swap
+        // NOTE: final swap buffers after rendering
         window.swap_buffers( );
-
-        auto timeEnd = std::time( nullptr );
-
-        auto timeDiff = (intmax_t)timeEnd - (intmax_t)timeBeg;
-        if ( timeDiff ) {
-            std::cout << "fps (TODO): " << ( currFrame - prevFrame ) / timeDiff << std::endl;
+        // timer
+        std::time( &timeEndSec );
+        auto timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
+        if ( timeDiffSec ) {
+            std::cout << "fps (TODO): " << ( currFrame - prevFrame ) / timeDiffSec << std::endl;
             prevFrame = currFrame;
-            timeBeg = timeEnd;
+            timeBegSec = timeEndSec;
         }
+        // next frame
         ++currFrame;
     }
 

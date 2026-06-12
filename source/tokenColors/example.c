@@ -144,8 +144,7 @@ struct AppX11 {
     Son8Bool isClosing;
     XSizeHints *sizeHints;
     Atom wmCloseAtom;
-    Son8Unt3 currFrame, prevFrame;
-    time_t timeDiff;
+    Son8Unt3 currFrame;
     XImage *image;
     Visual *imageVisual;
     int imageDepth;
@@ -159,7 +158,7 @@ struct AppX11 {
 int App_Error_X11;
 struct AppX11 App_X11;
 
-int app_error_handler_x11( Display *dpy, XErrorEvent *err );
+int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
 void app_draw( struct AppX11 *x11Write );
 
 SON8_EXTERN_CEND
@@ -167,8 +166,9 @@ SON8_EXTERN_CEND
 int main( int argc, char *argv[] ) {
     /* declarations, not mix with code */
     Son8TextVal name;
-    time_t timeBeg, timeEnd;
+    time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
+    Son8Unt3 prevFrame = 0u;
     struct AppX11 *x11Write = &App_X11;
     struct AppX11 const *x11 = &App_X11;
     Son8Size error = Error_None;
@@ -212,14 +212,13 @@ int main( int argc, char *argv[] ) {
 
     x11Write->imageVisual = DefaultVisual( x11->display, x11->screen );
     x11Write->imageDepth = DefaultDepth( x11->display, x11->screen );
-    /* NOTE: first should be drawBuffer, after that image data should point only to waitBuffer */
-    x11Write->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)x11Write->drawBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
+    x11Write->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)x11Write->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
     x11Write->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
 
     XMapWindow( x11->display, x11->window );
-    timeBeg = time( NULL );
+    time( &timeBegSec );
     while ( !x11->isClosing ) {
-        /* NOTE: first polling events before rendering */
+        /* NOTE: first poll events before rendering */
         while ( XPending( x11->display ) ) {
             XNextEvent( x11->display, &x11Write->event );
             switch ( x11->event.type ) {
@@ -233,21 +232,24 @@ int main( int argc, char *argv[] ) {
                 default: break;
             }
         } /* all pending events processed */
-        app_draw( x11Write );
+        /* NOTE: mezzo in between process rendering */
+        /* -- TODO: find a way make it async */
         XPutImage( x11->display, x11->window, x11->graphicContext, x11->image, 0, 0, 0, 0, APP_XSIZE, APP_YSIZE );
-        timeEnd = time( NULL );
-        x11Write->timeDiff = (intmax_t)timeEnd - (intmax_t)timeBeg;
-        if ( x11->timeDiff ) {
-            fprintf( logFile, "fps (TODO: more precision): %ld\n", ( x11->currFrame - x11->prevFrame ) / x11->timeDiff );
-            fflush( logFile );
-            x11Write->prevFrame = x11->currFrame;
-            timeBeg = timeEnd;
-        }
-        /* NOTE: second swapping buffers after rendering */
-        ++x11Write->currFrame;
-        x11Write->drawBuffer = &x11Write->frameBuffers[x11->currFrame & 1u];
-        x11Write->waitBuffer = &x11Write->frameBuffers[(x11->currFrame + 1) & 1u];
+        app_draw( x11Write );
+        /* NOTE: final swap buffers after rendering */
+        x11Write->waitBuffer = &x11Write->frameBuffers[x11->currFrame & 1u];
+        x11Write->drawBuffer = &x11Write->frameBuffers[(x11->currFrame + 1) & 1u];
         x11Write->image->data = (char *)x11Write->waitBuffer->data;
+        /* timer */
+        time( &timeEndSec );
+        timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
+        if ( timeDiffSec ) {
+            fprintf( logFile, "fps (TODO: more precision): %ld\n", ( x11->currFrame - prevFrame ) / (intmax_t)timeDiffSec );
+            fflush( logFile );
+            prevFrame = x11->currFrame;
+            timeBegSec = timeEndSec;
+        }
+        ++x11Write->currFrame;
     }
     /* cleaning */
     XDestroyWindow( x11->display, x11->window );
@@ -275,7 +277,7 @@ void app_draw( struct AppX11 *x11Write ) {
     /* TODO: write NASM function to handle logic of loop and writing */
     for ( x = 0u; x < APP_XSIZE; ++x ) {
         for ( y = 0u; y < APP_YSIZE; ++y ) {
-            x11Write->drawBuffer->data[x][y] = 0xFF104040u;
+            x11Write->drawBuffer->data[x][y] = 0xFF1A6868u;
         }
     }
 }

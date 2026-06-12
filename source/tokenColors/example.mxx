@@ -66,7 +66,8 @@ namespace app {
     struct DataSDL {
         using Expected = Expect< void, String >;
         SDL_Window *window;
-        bool isInit;
+        SDL_Event event;
+        bool isClosing;
     };
 
     struct InstanceVK {
@@ -77,13 +78,14 @@ namespace app {
     };
 
     struct DeviceVK {
+        static constexpr auto Swap_Image_Count_Max = 4u;
         VkDevice device;
         VkSwapchainKHR swapChain;
         Grow< VkImageView > swapImageViews;
         VkCommandPool commandPool;
         Flat< VkCommandBuffer, 1 > commandBuffers;
-        Flat< VkSemaphore, 4 > imageSemaphores;
-        Flat< VkSemaphore, 4 > presentSemaphores;
+        Flat< VkSemaphore, Swap_Image_Count_Max > imageSemaphores;
+        Grow< VkSemaphore > presentSemaphores;
         Flat< VkFence, 1 > flightFences;
         void free_command_buffers( ) const { vkFreeCommandBuffers( device, commandPool, commandBuffers.size( ), commandBuffers.data( ) ); }
         APP_CHECK_FREE( device ) vkDestroyDevice( device, nullptr ); %>
@@ -149,6 +151,12 @@ namespace app {
         };
     };
 
+    struct SwapVK final {
+        Unt2 imageIndex;
+        VkSemaphore imageSemaphore;
+        VkSemaphore presentSemaphore;
+    };
+
     struct DrawVK final {
         VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
         VkRenderingAttachmentInfo colorInfo{
@@ -187,6 +195,7 @@ namespace app {
         DeviceVK d;
         // init/draw related structures
         InitVK init;
+        SwapVK swap;
         DrawVK draw;
         // shared?
         VkPhysicalDevice physicalDevice;
@@ -201,15 +210,18 @@ namespace app {
 
     auto init_sdl( ) -> DataSDL::Expected;
     void free_sdl( Ref< DataSDL > sdl );
+    void poll_sdl( Out< DataSDL > sdlWrite );
 
     void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite );
     void free_vk( Ref< DataVK > vk );
     void draw_vk( Out< DataVK > vkWrite );
+    void swap_vk( Out< DataVK > vkWrite );
 
     struct Free {
         DataSDL sdl{ };
         // to avoid allocating fat vk struct on each program run
-        DataVK &vk = Global_VK;
+        DataVK &vkWrite = Global_VK;
+        DataVK const &vk = Global_VK;
        ~Free( ) {
             free_vk( vk );
             free_sdl( sdl );
@@ -224,7 +236,7 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     using app::DataSDL;
     app::init_sdl( )
     .and_then( [&app]( ) -> DataSDL::Expected {
-        app.sdl.isInit = true;
+        app.sdl.isClosing = false;
         app.sdl.window = SDL_CreateWindow( "Vulkan Window", 640, 360, SDL_WINDOW_VULKAN );
         if ( app.sdl.window ) return { };
         return std::unexpected{ "SDL_CreateWindow failed" };
@@ -235,27 +247,29 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     .transform_error( []( String const &str ) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
     .value( );
 
-    app::init_vk( app.sdl, app.vk );
-
-    bool running = true;
-    SDL_Event event;
+    app::init_vk( app.sdl, app.vkWrite );
 
     auto prevFrame = app.vk.curFrame;
-    auto timeBeg = std::time( nullptr );
-    while ( running ) {
-        while ( SDL_PollEvent( &event ) ) {
-            if ( event.type == SDL_EVENT_QUIT ) running = false;
-        }
-        app::draw_vk( app.vk );
-
-        auto timeEnd = std::time( nullptr );
-        auto timeDiff = (intmax_t)timeEnd - (intmax_t)timeBeg;
-        if ( timeDiff ) {
-            std::println( "fps (TODO): {}", ( app.vk.curFrame - prevFrame ) / timeDiff );
+    std::time_t timeBegSec, timeEndSec;
+    std::time( &timeBegSec );
+    // NOTE: pre-swap to prepare synchronization
+    app::swap_vk( app.vkWrite );
+    while ( not app.sdl.isClosing ) {
+        // NOTE: first poll events before rendering
+        app::poll_sdl(app.sdl );
+        // NOTE: mezzo in between process rendering
+        app::draw_vk( app.vkWrite );
+        // NOTE: final swap buffers after rendering
+        app::swap_vk( app.vkWrite );
+        // timer
+        std::time( &timeEndSec );
+        auto timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
+        if ( timeDiffSec ) {
+            std::println( "fps (TODO): {}", ( app.vk.curFrame - prevFrame ) / timeDiffSec );
             prevFrame = app.vk.curFrame;
-            timeBeg = timeEnd;
+            timeBegSec = timeEndSec;
         }
-        ++app.vk.curFrame;
+        ++app.vkWrite.curFrame;
     }
 
     return EXIT_SUCCESS;
@@ -265,7 +279,8 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
 } catch ( ... ) {
     std::cerr << "...\n";
     return EXIT_FAILURE;
-}
+} // main
+
 // definitions
 namespace app {
     auto init_sdl( ) -> DataSDL::Expected {
@@ -275,7 +290,14 @@ namespace app {
 
     void free_sdl( Ref< DataSDL > sdl ) {
         if ( sdl.window ) SDL_DestroyWindow( sdl.window );
-        if ( sdl.isInit ) SDL_Quit( );
+        if ( sdl.isClosing ) SDL_Quit( );
+    }
+
+    void poll_sdl( Out< DataSDL > sdlWrite ) {
+        auto const &event = sdlWrite.event;
+        while ( SDL_PollEvent( &sdlWrite.event ) ) {
+            if ( event.type == SDL_EVENT_QUIT ) sdlWrite.isClosing = true;
+        }
     }
 
     void init_vk( Ref< DataSDL > sdl, Out< DataVK > vkWrite ) {
@@ -335,6 +357,7 @@ namespace app {
         Unt2 swapImageCount;
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr );
         std::println( "swap image count: {}", swapImageCount );
+        if ( swapImageCount > DeviceVK::Swap_Image_Count_Max ) throw_error( "swap image count assumed to be not larger then 4" );
         vkWrite.swapImages.resize( swapImageCount );
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, vkWrite.swapImages.data( ) );
         // -- views
@@ -357,12 +380,13 @@ namespace app {
         for ( auto &sema : vkWrite.d.imageSemaphores ) {
             CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
+        vkWrite.d.presentSemaphores.resize( swapImageCount );
         for ( auto &sema : vkWrite.d.presentSemaphores ) {
             CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         // -- fences
         CHECK_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, vkWrite.d.flightFences.begin( ) ) );
-    }
+    } // init_vk
 
     void free_vk( Ref< DataVK > vk ) {
         static constexpr Bool Check = true; // NOTE: must be true, helper
@@ -386,14 +410,22 @@ namespace app {
         return;
     }
 
+    void swap_vk( Out< DataVK > vkWrite ) {
+        auto const &vk = vkWrite;
+        // sync cpu/gpu
+        vkWaitForFences( vk.d.device, 1, vk.d.flightFences.begin( ), VK_TRUE, UINT64_MAX );
+        vkResetFences( vk.d.device, 1, vk.d.flightFences.begin( ) );
+        assert( vk.d.imageSemaphores.size( ) == DeviceVK::Swap_Image_Count_Max );
+        vkWrite.swap.imageSemaphore = vk.d.imageSemaphores[vk.curFrame & 0b11u];
+        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.swap.imageSemaphore, VK_NULL_HANDLE, &vkWrite.swap.imageIndex );
+        vkWrite.swap.presentSemaphore = vk.d.presentSemaphores[vk.swap.imageIndex];
+    }
+
     void draw_vk( Out< DataVK > vkWrite ) {
         auto const &vk = vkWrite;
-
-        vkWaitForFences( vk.d.device, 1, &vk.d.flightFences[0], VK_TRUE, UINT64_MAX );
-        vkResetFences( vk.d.device, 1, &vk.d.flightFences[0] );
-        Unt2 semaIdx = vk.curFrame & 0b11u;
-        Unt2 imageIndex;
-        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.d.imageSemaphores[semaIdx], VK_NULL_HANDLE, &imageIndex );
+        auto imageIndex = vk.swap.imageIndex;
+        auto imageSemaphore = vk.swap.imageSemaphore;
+        auto presentSemaphore = vk.swap.presentSemaphore;
 
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
         vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
@@ -421,15 +453,16 @@ namespace app {
         vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
 
         vkEndCommandBuffer( vk.d.commandBuffers[0] );
-
+        // sync images?
         vkWrite.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
-        vkWrite.draw.submitInfo.pWaitSemaphores = &vk.d.imageSemaphores[semaIdx];
-        vkWrite.draw.submitInfo.pSignalSemaphores =  &vk.d.presentSemaphores[imageIndex];
+        vkWrite.draw.submitInfo.pWaitSemaphores = &imageSemaphore;
+        vkWrite.draw.submitInfo.pSignalSemaphores = &presentSemaphore;
         vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
-
-        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.d.presentSemaphores[imageIndex];
+        // sync monitor?
+        vkWrite.draw.presentInfo.pWaitSemaphores = &presentSemaphore;
         vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
         vkWrite.draw.presentInfo.pImageIndices = &imageIndex;
         vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
-    }
-}
+    } // draw_wk
+
+} // namespace app
