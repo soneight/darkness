@@ -70,9 +70,9 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     auto prevFrame = currFrame;
 
     glViewport( 0, 0, Window::Size_X, Window::Size_Y );
-
+    auto timeBeg = std::time( nullptr );
     while ( window.is_running( ) ) {
-        auto timeBeg = std::time( nullptr );
+
         // first is events
         glfwPollEvents( );
         // middle is draw
@@ -86,6 +86,7 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
         if ( timeDiff ) {
             std::cout << "fps (TODO): " << ( currFrame - prevFrame ) / timeDiff << std::endl;
             prevFrame = currFrame;
+            timeBeg = timeEnd;
         }
         ++currFrame;
     }

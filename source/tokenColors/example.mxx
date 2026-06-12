@@ -131,7 +131,7 @@ namespace app {
             .imageArrayLayers = 1,
             .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+            .presentMode = VK_PRESENT_MODE_MAILBOX_KHR,
             .clipped = VK_TRUE
         };
         VkCommandPoolCreateInfo poolInfo{
@@ -240,11 +240,22 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     bool running = true;
     SDL_Event event;
 
+    auto prevFrame = app.vk.curFrame;
+    auto timeBeg = std::time( nullptr );
     while ( running ) {
         while ( SDL_PollEvent( &event ) ) {
             if ( event.type == SDL_EVENT_QUIT ) running = false;
         }
         app::draw_vk( app.vk );
+
+        auto timeEnd = std::time( nullptr );
+        auto timeDiff = (intmax_t)timeEnd - (intmax_t)timeBeg;
+        if ( timeDiff ) {
+            std::println( "fps (TODO): {}", ( app.vk.curFrame - prevFrame ) / timeDiff );
+            prevFrame = app.vk.curFrame;
+            timeBeg = timeEnd;
+        }
+        ++app.vk.curFrame;
     }
 
     return EXIT_SUCCESS;
@@ -380,7 +391,7 @@ namespace app {
 
         vkWaitForFences( vk.d.device, 1, &vk.d.flightFences[0], VK_TRUE, UINT64_MAX );
         vkResetFences( vk.d.device, 1, &vk.d.flightFences[0] );
-        Unt2 semaIdx = vkWrite.curFrame++ & 0b11u;
+        Unt2 semaIdx = vk.curFrame & 0b11u;
         Unt2 imageIndex;
         vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.d.imageSemaphores[semaIdx], VK_NULL_HANDLE, &imageIndex );
 
@@ -413,10 +424,10 @@ namespace app {
 
         vkWrite.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
         vkWrite.draw.submitInfo.pWaitSemaphores = &vk.d.imageSemaphores[semaIdx];
-        vkWrite.draw.submitInfo.pSignalSemaphores =  &vk.d.presentSemaphores[semaIdx];
+        vkWrite.draw.submitInfo.pSignalSemaphores =  &vk.d.presentSemaphores[imageIndex];
         vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
 
-        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.d.presentSemaphores[semaIdx];
+        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.d.presentSemaphores[imageIndex];
         vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
         vkWrite.draw.presentInfo.pImageIndices = &imageIndex;
         vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);

@@ -88,11 +88,11 @@ $(MXX_TARGET): $(MXX_OBJECT)
 	g++ -lSDL3 -lvulkan $(MXX_IMPOBJ) $(MXX_OBJECT) -o $(MXX_TARGET)
 # -- compile object file
 $(MXX_OBJECT): $(MXX_SOURCE) $(MXX_IMPOBJ)
-	cd $(BUILDS) && g++ -std=c++23 -fmodules -DAPP_IMPORT_STD $(WARNER) -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)
+	cd $(BUILDS) && g++ -g -std=c++23 -fmodules -DAPP_IMPORT_STD $(WARNER) -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)
 # -- import std for modules
 $(MXX_IMPOBJ): $(MXX_IMPORT)
 	@mkdir -p $(BUILDS)
-	cd $(BUILDS) && g++ -std=c++23 -fmodules -c $(MXX_IMPORT) -o $(MXX_IMPOBJ)
+	cd $(BUILDS) && g++ -g -std=c++23 -fmodules -c $(MXX_IMPORT) -o $(MXX_IMPOBJ)
 # remove build artifacts
 clean:
 	@rm -rf $(BUILDS)

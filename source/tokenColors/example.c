@@ -217,8 +217,8 @@ int main( int argc, char *argv[] ) {
     x11Write->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
 
     XMapWindow( x11->display, x11->window );
+    timeBeg = time( NULL );
     while ( !x11->isClosing ) {
-        timeBeg = time( NULL );
         /* NOTE: first polling events before rendering */
         while ( XPending( x11->display ) ) {
             XNextEvent( x11->display, &x11Write->event );
@@ -241,6 +241,7 @@ int main( int argc, char *argv[] ) {
             fprintf( logFile, "fps (TODO: more precision): %ld\n", ( x11->currFrame - x11->prevFrame ) / x11->timeDiff );
             fflush( logFile );
             x11Write->prevFrame = x11->currFrame;
+            timeBeg = timeEnd;
         }
         /* NOTE: second swapping buffers after rendering */
         ++x11Write->currFrame;
