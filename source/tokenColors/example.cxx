@@ -43,6 +43,17 @@ namespace app {
 
     class WindowGLFW final {
         GLFWwindow *window_;
+        static void key_Callback( GLFWwindow *window, int key, [[maybe_unused]] int scancode, int action, int mods ) {
+            auto escapeCall = [&window,action,mods]() {
+                if ( action != GLFW_RELEASE || not ( mods & GLFW_MOD_CONTROL ) ) return;
+                glfwSetWindowShouldClose( window, GLFW_TRUE );
+            };
+
+            switch ( key ) {
+            case GLFW_KEY_ESCAPE: escapeCall( ); break;
+                default: break;
+            }
+        }
     public:
         static constexpr auto Size_X = 640u;
         static constexpr auto Size_Y = 360u;
@@ -52,6 +63,7 @@ namespace app {
             if ( not window_ ) throw Exception{ "glfwCreateWindow failed" };
             activate_context( );
             glfwSwapInterval( 0 );
+            glfwSetKeyCallback( window_, key_Callback );
         }
        ~WindowGLFW( ) { glfwDestroyWindow( window_ ); }
         operator GLFWwindow *( ) { return window_; }
