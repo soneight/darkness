@@ -368,14 +368,17 @@ namespace app {
         auto const &vk = outVk;
         // device
         // -- physical
-        // -- TODO: add proper physical device selection
-        Unt2 deviceCount;
-        vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, nullptr );
-        if ( not deviceCount ) throw_error( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
-        Flat< VkPhysicalDevice, 1 > devices;
-        deviceCount = 1;
+        Grow< VkPhysicalDevice > devices;
+        // -- NOTE: assuming that at least one physical device exists
+        // -- \ (accept seqfault here, there no reasons to not accept it in this case)
+        devices.resize( 1 );
+        Unt2 deviceIndex = 0u, deviceCount = 1u;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) );
-        outVk.physicalDevice = devices[0];
+        if ( not deviceCount ) throw_error( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
+        else if ( deviceCount > 1 ) {
+            // TODO: check if first one discrete if not try to find better device
+        }
+        outVk.physicalDevice = devices[deviceIndex];
         // TODO: add determining proper queue family that should support graphics and present mode,
         // \ but if possibly do not support compute bit, return first index that satisfy it or
         // \ index that at least support graphics bit and present mode (which should always be a case?)
