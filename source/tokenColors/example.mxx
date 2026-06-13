@@ -10,6 +10,7 @@
 #ifndef APP_IMPORT_STD
 #   include <array>
 #   include <cstdint>
+#   include <ctime>
 #   include <expected>
 #   include <iostream>
 #   include <string>
@@ -84,7 +85,7 @@ namespace app {
         Grow< VkImageView > swapImageViews;
         VkCommandPool commandPool;
         Flat< VkCommandBuffer, 1 > commandBuffers;
-        Flat< VkSemaphore, Swap_Image_Count_Max > imageSemaphores;
+        Flat< VkSemaphore, Swap_Image_Count_Max > flightSemaphores;
         Grow< VkSemaphore > presentSemaphores;
         Flat< VkFence, 1 > flightFences;
         void free_command_buffers( ) const { vkFreeCommandBuffers( device, commandPool, commandBuffers.size( ), commandBuffers.data( ) ); }
@@ -92,7 +93,7 @@ namespace app {
         APP_CHECK_FREE2( swap_chain, swapChain ) vkDestroySwapchainKHR( device, swapChain, nullptr ); %>
         APP_CHECK_FREE2( command_pool, commandPool ) vkDestroyCommandPool( device, commandPool, nullptr ); %>
         APP_CHECK_RANGE_FREE2( swap_image_views, swapImageViews, value ) vkDestroyImageView( device, value, nullptr ); %> %>
-        APP_CHECK_RANGE_FREE2( image_semaphores, imageSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
+        APP_CHECK_RANGE_FREE2( flight_semaphores, flightSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
         APP_CHECK_RANGE_FREE2( present_semaphores, presentSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
         APP_CHECK_RANGE_FREE2( flight_fences, flightFences, value ) vkDestroyFence( device, value, nullptr ); %> %>
     };
@@ -153,7 +154,7 @@ namespace app {
 
     struct SwapVK final {
         Unt2 imageIndex;
-        VkSemaphore imageSemaphore;
+        VkSemaphore flightSemaphore;
         VkSemaphore presentSemaphore;
     };
 
@@ -311,7 +312,7 @@ namespace app {
         vkDeviceWaitIdle( vk.d.device );
         vk.d.free_flight_fences< Check >( );
         vk.d.free_present_semaphores< Check >( );
-        vk.d.free_image_semaphores< Check >( );
+        vk.d.free_flight_semaphores< Check >( );
         vk.d.free_swap_image_views< Check >( );
         vk.d.free_swap_chain< Check >( );
         if ( not vk.d.commandPool ) goto device_;
@@ -405,7 +406,7 @@ namespace app {
         CHECK_VK( vkAllocateCommandBuffers( vk.d.device, &vk.init.bufferInfo, vkWrite.d.commandBuffers.data( ) ) );
         // sync
         // -- semaphores
-        for ( auto &sema : vkWrite.d.imageSemaphores ) {
+        for ( auto &sema : vkWrite.d.flightSemaphores ) {
             CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         vkWrite.d.presentSemaphores.resize( swapImageCount );
@@ -421,38 +422,27 @@ namespace app {
         // sync cpu/gpu
         vkWaitForFences( vk.d.device, 1, vk.d.flightFences.begin( ), VK_TRUE, UINT64_MAX );
         vkResetFences( vk.d.device, 1, vk.d.flightFences.begin( ) );
-        assert( vk.d.imageSemaphores.size( ) == DeviceVK::Swap_Image_Count_Max );
-        vkWrite.swap.imageSemaphore = vk.d.imageSemaphores[vk.curFrame & 0b11u];
-        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.swap.imageSemaphore, VK_NULL_HANDLE, &vkWrite.swap.imageIndex );
+        static_assert( std::tuple_size_v< decltype( vk.d.flightSemaphores ) > == DeviceVK::Swap_Image_Count_Max
+            , "assumed to be 4 to allow bitwise &b11u with up to 3 frames in flight" );
+        vkWrite.swap.flightSemaphore = vk.d.flightSemaphores[vk.curFrame & 0b11u];
+        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.swap.flightSemaphore, VK_NULL_HANDLE, &vkWrite.swap.imageIndex );
         vkWrite.swap.presentSemaphore = vk.d.presentSemaphores[vk.swap.imageIndex];
-    }
-
-    void show_vk( Out< DataVK > vkWrite ) {
-        auto const &vk = vkWrite;
-        // sync monitor?
-        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.swap.presentSemaphore;
-        vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
-        vkWrite.draw.presentInfo.pImageIndices = &vk.swap.imageIndex;
-        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
     }
 
     void draw_vk( Out< DataVK > vkWrite ) {
         auto const &vk = vkWrite;
-        auto imageIndex = vk.swap.imageIndex;
-        auto imageSemaphore = vk.swap.imageSemaphore;
-        auto presentSemaphore = vk.swap.presentSemaphore;
 
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
         vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
 
-        vkWrite.draw.imageBarrier.image = vk.swapImages[imageIndex];
+        vkWrite.draw.imageBarrier.image = vk.swapImages[vk.swap.imageIndex];
         vkWrite.draw.imageBarrier.srcAccessMask = 0;
         vkWrite.draw.imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         vkWrite.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         vkWrite.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
 
-        vkWrite.draw.colorInfo.imageView = vk.d.swapImageViews[imageIndex];
+        vkWrite.draw.colorInfo.imageView = vk.d.swapImageViews[vk.swap.imageIndex];
         vkWrite.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
         vkWrite.draw.renderInfo.renderArea = { .extent = vk.swapExtent };
         vkWrite.draw.renderInfo.pColorAttachments = &vk.draw.colorInfo;
@@ -470,10 +460,19 @@ namespace app {
         vkEndCommandBuffer( vk.d.commandBuffers[0] );
         // sync images?
         vkWrite.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
-        vkWrite.draw.submitInfo.pWaitSemaphores = &imageSemaphore;
-        vkWrite.draw.submitInfo.pSignalSemaphores = &presentSemaphore;
+        vkWrite.draw.submitInfo.pWaitSemaphores = &vk.swap.flightSemaphore;
+        vkWrite.draw.submitInfo.pSignalSemaphores = &vk.swap.presentSemaphore;
         vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
 
     } // draw_wk
+
+    void show_vk( Out< DataVK > vkWrite ) {
+        auto const &vk = vkWrite;
+        // sync monitor?
+        vkWrite.draw.presentInfo.pWaitSemaphores = &vk.swap.presentSemaphore;
+        vkWrite.draw.presentInfo.pSwapchains = &vk.d.swapChain;
+        vkWrite.draw.presentInfo.pImageIndices = &vk.swap.imageIndex;
+        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
+    }
 
 } // namespace app
