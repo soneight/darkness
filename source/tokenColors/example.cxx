@@ -68,32 +68,38 @@ namespace app {
        ~WindowGLFW( ) { glfwDestroyWindow( window_ ); }
         operator GLFWwindow *( ) { return window_; }
         Void activate_context( ) { glfwMakeContextCurrent( window_ ); }
-        Bool is_running( ) const { return not glfwWindowShouldClose( window_ ); }
+        Bool is_closing( ) const { return glfwWindowShouldClose( window_ ); }
         Void swap_buffers( ) const { glfwSwapBuffers( window_); }
+        static Void poll_events( ) { glfwPollEvents( ); }
     };
 
+    Void poll_glfw( );
+    Void sync_gl( );
     Void draw_gl( );
+    Void show_gl( Ref< WindowGLFW > window );
 }
 auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try {
-    using Window = app::WindowGLFW;
     app::InitGLFW init;
     app::WindowGLFW window;
     auto currFrame = 0u;
     auto prevFrame = currFrame;
 
-    glViewport( 0, 0, Window::Size_X, Window::Size_Y );
     std::time_t timeBegSec, timeEndSec;
     std::time( &timeBegSec );
-    while ( window.is_running( ) ) {
-        // NOTE: first poll events before rendering
-        glfwPollEvents( );
-        // NOTE: mezzo in between process rendering
+
+    while ( not window.is_closing( ) ) {
+        // NOTE: poll events before rendering
+        app::poll_glfw( );
+        // NOTE: synchronize before rendering
+        app::sync_gl( );
+        // NOTE: in between process rendering
         app::draw_gl( );
-        // NOTE: final swap buffers after rendering
-        window.swap_buffers( );
+        // NOTE: present-swap after rendering
+        app::show_gl( window );
         // timer
         std::time( &timeEndSec );
         auto timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
+
         if ( timeDiffSec ) {
             std::cout << "fps (TODO): " << ( currFrame - prevFrame ) / timeDiffSec << std::endl;
             prevFrame = currFrame;
@@ -110,10 +116,25 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
 }
 // definitions
 namespace app {
+
+    Void poll_glfw( ) {
+        WindowGLFW::poll_events( );
+    }
+
+    Void sync_gl( ) {
+        // TODO: check resize status (create it) and only if window resized update viewport
+        // \ make it in a way that on first frame it is always called so resized is true
+        glViewport( 0, 0, WindowGLFW::Size_X, WindowGLFW::Size_Y );
+    }
+
     Void draw_gl( ) {
         glClear( GL_COLOR_BUFFER_BIT );
         glClearColor( .1f, .4f, .4f, 1.f );
         glFlush( );
+    }
+
+    Void show_gl( Ref< WindowGLFW > window ) {
+        window.swap_buffers( );
     }
 }
 // check hidden preprocessor (must be less bright)

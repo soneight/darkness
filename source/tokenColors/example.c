@@ -130,7 +130,11 @@ int App_Error_X11;
 struct AppX11 App_X11;
 /* declarations */
 int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
-void app_draw( struct AppX11 *x11Write );
+
+void app_poll( struct AppX11 *outX11 );
+void app_sync( struct AppX11 *outX11 );
+void app_draw( struct AppX11 *outX11 );
+void app_show( struct AppX11 *outX11 );
 
 SON8_EXTERN_CEND
 
@@ -139,11 +143,11 @@ int main( int argc, char *argv[] ) {
     time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
     Son8Unt3 prevFrame = 0u;
-    struct AppX11 *x11Write = &App_X11;
+    struct AppX11 *outX11 = &App_X11;
     struct AppX11 const *x11 = &App_X11;
     Son8Size error = Error_None;
-    x11Write->drawBuffer = &x11Write->frameBuffers[0];
-    x11Write->waitBuffer = &x11Write->frameBuffers[1];
+    outX11->drawBuffer = &outX11->frameBuffers[0];
+    outX11->waitBuffer = &outX11->frameBuffers[1];
     /* code */
     puts( argv[0] );
     /* checking arguments */
@@ -155,63 +159,51 @@ int main( int argc, char *argv[] ) {
         puts( "logging into <temp.clog.txt> file success" );
     } else logFile = stdout;
     /* init display */
-    x11Write->display = XOpenDisplay( NULL );
+    outX11->display = XOpenDisplay( NULL );
     if ( x11->display == NULL && ( error = Error_Init ) ) goto error_init_;
     puts( "XOpenDisplay success" );
     XSetErrorHandler( app_error_handler_x11 );
     /* creating window */
-    x11Write->screen = DefaultScreen( x11->display );
-    x11Write->root = RootWindow( x11->display, x11->screen );
-    x11Write->window = XCreateSimpleWindow( x11->display, x11->root, 0, 0, APP_XSIZE, APP_YSIZE, 0, 0, 0);
+    outX11->screen = DefaultScreen( x11->display );
+    outX11->root = RootWindow( x11->display, x11->screen );
+    outX11->window = XCreateSimpleWindow( x11->display, x11->root, 0, 0, APP_XSIZE, APP_YSIZE, 0, 0, 0);
     XStoreName( x11->display, x11->window, "X11 Window" );
     XSync( x11->display, False );
     if ( App_Error_X11 && ( error = Error_Window ) ) goto error_window_;
     puts( "XCreateSimpleWindow success" );
     XSetErrorHandler( NULL );
 
-    x11Write->sizeHints = XAllocSizeHints( );
+    outX11->sizeHints = XAllocSizeHints( );
     if ( x11->sizeHints ) {
-        x11Write->sizeHints->flags = PMinSize | PMaxSize;
-        x11Write->sizeHints->min_width = x11Write->sizeHints->max_width = 640;
-        x11Write->sizeHints->min_height = x11Write->sizeHints->max_height = 360;
+        outX11->sizeHints->flags = PMinSize | PMaxSize;
+        outX11->sizeHints->min_width = outX11->sizeHints->max_width = 640;
+        outX11->sizeHints->min_height = outX11->sizeHints->max_height = 360;
         XSetWMNormalHints(x11->display, x11->window, x11->sizeHints );
         XFree( x11->sizeHints );
     }
-    x11Write->wmCloseAtom = XInternAtom( x11->display, "WM_DELETE_WINDOW", False );
-    XSetWMProtocols( x11->display, x11->window, &x11Write->wmCloseAtom, 1 );
+    outX11->wmCloseAtom = XInternAtom( x11->display, "WM_DELETE_WINDOW", False );
+    XSetWMProtocols( x11->display, x11->window, &outX11->wmCloseAtom, 1 );
     /* processing events */
     XSelectInput( x11->display, x11->window, ExposureMask | KeyPressMask | ButtonPressMask );
 
-    x11Write->imageVisual = DefaultVisual( x11->display, x11->screen );
-    x11Write->imageDepth = DefaultDepth( x11->display, x11->screen );
-    x11Write->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)x11Write->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
-    x11Write->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
+    outX11->imageVisual = DefaultVisual( x11->display, x11->screen );
+    outX11->imageDepth = DefaultDepth( x11->display, x11->screen );
+    outX11->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)outX11->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
+    outX11->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
 
     XMapWindow( x11->display, x11->window );
     time( &timeBegSec );
+
     while ( !x11->isClosing ) {
-        /* NOTE: first poll events before rendering */
-        while ( XPending( x11->display ) ) {
-            XNextEvent( x11->display, &x11Write->event );
-            switch ( x11->event.type ) {
-            case Expose: break;
-            case KeyPress: break;
-            case ButtonPress: break;
-            case ClientMessage: {
-                if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) x11Write->isClosing = 1;
-                    break;
-            }
-                default: break;
-            }
-        } /* all pending events processed */
-        /* NOTE: mezzo in between process rendering */
+        /* NOTE: poll events before rendering */
+        app_poll( outX11 );
+        /* NOTE: synchronize before rendering */
         /* -- TODO: find a way make it async */
-        XPutImage( x11->display, x11->window, x11->graphicContext, x11->image, 0, 0, 0, 0, APP_XSIZE, APP_YSIZE );
-        app_draw( x11Write );
-        /* NOTE: final swap buffers after rendering */
-        x11Write->waitBuffer = &x11Write->frameBuffers[x11->currFrame & 1u];
-        x11Write->drawBuffer = &x11Write->frameBuffers[(x11->currFrame + 1) & 1u];
-        x11Write->image->data = (char *)x11Write->waitBuffer->data;
+        app_sync( outX11 );
+        /* NOTE: in between process rendering */
+        app_draw( outX11 );
+        /* NOTE: present-swap after rendering */
+        app_show( outX11 );
         /* timer */
         time( &timeEndSec );
         timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
@@ -221,7 +213,7 @@ int main( int argc, char *argv[] ) {
             prevFrame = x11->currFrame;
             timeBegSec = timeEndSec;
         }
-        ++x11Write->currFrame;
+        ++outX11->currFrame;
     }
     /* cleaning */
     XDestroyWindow( x11->display, x11->window );
@@ -232,24 +224,57 @@ error_init_:
 error_log_:
 error_argc_:
     assert( error < Error_Last_ );
+
     if ( error != Error_None ) {
         fprintf( stderr, "error: %s\n", Text_Error[error] );
         return EXIT_FAILURE;
     }
+
     return EXIT_SUCCESS;
 }
 
 SON8_EXTERN_CBEG
 
 /* -- app definitions */
-void app_draw( struct AppX11 *x11Write ) {
+void app_poll( struct AppX11 *outX11 ) {
+    struct AppX11 const *x11 = outX11;
+
+    while ( XPending( x11->display ) ) {
+        XNextEvent( x11->display, &outX11->event );
+        switch ( x11->event.type ) {
+        case Expose: break;
+        case KeyPress: break;
+        case ButtonPress: break;
+        case ClientMessage: {
+            if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) outX11->isClosing = 1;
+                break;
+        }
+            default: break;
+        }
+    }
+
+}
+
+void app_sync( struct AppX11 *outX11 ) {
+    struct AppX11 *x11 = outX11;
+    XPutImage( x11->display, x11->window, x11->graphicContext, x11->image, 0, 0, 0, 0, APP_XSIZE, APP_YSIZE );
+}
+
+void app_draw( struct AppX11 *outX11 ) {
     Son8Size x, y;
     /* TODO: write NASM function to handle logic of loop and writing */
     for ( x = 0u; x < APP_XSIZE; ++x ) {
         for ( y = 0u; y < APP_YSIZE; ++y ) {
-            x11Write->drawBuffer->data[x][y] = 0xFF1A6868u;
+            outX11->drawBuffer->data[x][y] = 0xFF1A6868u;
         }
     }
+}
+
+void app_show( struct AppX11 *outX11 ) {
+    struct AppX11 *x11 = outX11;
+    outX11->waitBuffer = &outX11->frameBuffers[x11->currFrame & 1u];
+    outX11->drawBuffer = &outX11->frameBuffers[(x11->currFrame + 1) & 1u];
+    outX11->image->data = (char *)outX11->waitBuffer->data;
 }
 
 int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
