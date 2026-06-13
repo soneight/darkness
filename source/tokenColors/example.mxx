@@ -99,6 +99,7 @@ namespace app {
     };
 
     struct InitVK final {
+        static constexpr bool Enable_Validation = true;
         VkApplicationInfo appInfo{
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pApplicationName = "example.mxx",
@@ -152,8 +153,9 @@ namespace app {
         };
     };
 
-    struct SwapVK final {
+    struct SyncVK final {
         Unt2 imageIndex;
+        Unt2 flightIndex;
         VkFence flightFence;
         VkSemaphore flightSemaphore;
         VkSemaphore presentSemaphore;
@@ -197,7 +199,7 @@ namespace app {
         DeviceVK d;
         // init/draw related structures
         InitVK init;
-        SwapVK swap;
+        SyncVK sync;
         DrawVK draw;
         // shared?
         VkPhysicalDevice physicalDevice;
@@ -209,13 +211,15 @@ namespace app {
     };
 
     static DataVK Global_VK{ };
-
+    // sdl related function definitions
     void free_sdl( Ref< DataSDL > sdl );
     auto init_sdl( ) -> DataSDL::Expected;
     void poll_sdl( Out< DataSDL > outSdl );
-
-    void free_vk( Ref< DataVK > vk );
-    void init_vk( Ref< DataSDL > sdl, Out< DataVK > outVk );
+    // breach between sdl and vk
+    void init_sdl_with_vk( Ref< DataSDL > sdl, Out< DataVK > outVk );
+    // vk related functions definitions
+    void free_vk( Ref< DataVK > vk, bool keepInstance = false );
+    void init_vk( Out< DataVK > outVk );
     void sync_vk( Out< DataVK > outVk );
     void draw_vk( Out< DataVK > outVk );
     void show_vk( Out< DataVK > outVk );
@@ -250,7 +254,8 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     .transform_error( []( String const &str ) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
     .value( );
 
-    app::init_vk( app.sdl, app.outVk );
+    app::init_sdl_with_vk( app.sdl, app.outVk );
+    app::init_vk( app.outVk );
 
     auto prevFrame = app.vk.curFrame;
     std::time_t timeBegSec, timeEndSec;
@@ -307,35 +312,17 @@ namespace app {
         }
     }
 
-    void free_vk( Ref< DataVK > vk ) {
-        static constexpr Bool Check = true; // NOTE: must be true, helper
-        if ( not vk.d.device ) goto instance_;
-        vkDeviceWaitIdle( vk.d.device );
-        vk.d.free_flight_fences< Check >( );
-        vk.d.free_present_semaphores< Check >( );
-        vk.d.free_flight_semaphores< Check >( );
-        vk.d.free_swap_image_views< Check >( );
-        vk.d.free_swap_chain< Check >( );
-        if ( not vk.d.commandPool ) goto device_;
-        vk.d.free_command_buffers( );
-        vk.d.free_command_pool(  );
-    device_:
-        vk.d.free_device( );
-    instance_:
-        if ( not vk.i.instance ) goto return_;
-        vk.i.free_surface< Check >( );
-        vk.i.free_instance( );
-    return_:
-        return;
-    }
-
-    void init_vk( Ref< DataSDL > sdl, Out< DataVK > outVk ) {
+    void init_sdl_with_vk( Ref< DataSDL > sdl, Out< DataVK > outVk ) {
         auto const &vk = outVk;
         // instance
         // -- layers
         // TODO: add check if validation layers are even supported
         // \ also only add it only in debug builds
-        Flat< CStr, 1 > layers{ "VK_LAYER_KHRONOS_validation" };
+        Grow< CStr > layers{ };
+        layers.reserve( 1u ); // NOTE: reserve up to maximum possible layers that can occur in this function
+        if constexpr ( InitVK::Enable_Validation ) {
+            layers.push_back( "VK_LAYER_KHRONOS_validation" );
+        }
         // -- extensions
         std::uint32_t extensionsCount;
         auto extensions = SDL_Vulkan_GetInstanceExtensions( &extensionsCount );
@@ -353,12 +340,37 @@ namespace app {
         if ( not SDL_Vulkan_CreateSurface( sdl.window, vk.i.instance, nullptr, &outVk.i.surface) ) {
             throw_error( "SDL_Vulkan_CreateSurface failed: ", SDL_GetError( ) );
         }
+    }
+
+    void free_vk( Ref< DataVK > vk, bool keepInstance ) {
+        static constexpr Bool Check = true; // NOTE: must be true, helper
+        if ( not vk.d.device ) goto instance_;
+        vkDeviceWaitIdle( vk.d.device );
+        vk.d.free_flight_fences< Check >( );
+        vk.d.free_present_semaphores< Check >( );
+        vk.d.free_flight_semaphores< Check >( );
+        vk.d.free_swap_image_views< Check >( );
+        vk.d.free_swap_chain< Check >( );
+        if ( not vk.d.commandPool ) goto device_;
+        vk.d.free_command_buffers( );
+        vk.d.free_command_pool(  );
+    device_:
+        vk.d.free_device( );
+    instance_:
+        if ( not vk.i.instance || keepInstance ) goto return_;
+        vk.i.free_surface< Check >( );
+        vk.i.free_instance( );
+    return_:
+        return;
+    }
+
+    void init_vk( Out< DataVK > outVk ) {
+        auto const &vk = outVk;
         // device
         // -- physical
         // -- TODO: add proper physical device selection
         Unt2 deviceCount;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, nullptr );
-        std::println( "devices count: {}", deviceCount );
         if ( not deviceCount ) throw_error( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
         Flat< VkPhysicalDevice, 1 > devices;
         deviceCount = 1;
@@ -381,7 +393,6 @@ namespace app {
         VkSurfaceCapabilitiesKHR caps;
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.i.surface, &caps );
         outVk.swapExtent = caps.currentExtent;
-        std::println( "swap extent: {}x{}", vk.swapExtent.width, vk.swapExtent.height );
         outVk.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
         outVk.init.swapInfo.surface = vk.i.surface;
         outVk.init.swapInfo.imageFormat = vk.swapFormat;
@@ -392,7 +403,6 @@ namespace app {
         // -- images
         Unt2 swapImageCount;
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr );
-        std::println( "swap image count: {}", swapImageCount );
         if ( swapImageCount > DeviceVK::Swap_Image_Count_Max ) throw_error( "swap image count assumed to be not larger then 4" );
         outVk.swapImages.resize( swapImageCount );
         vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, outVk.swapImages.data( ) );
@@ -426,15 +436,19 @@ namespace app {
 
     void sync_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
+        // TODO: remove this, for now just for fun to check if decouple works correctly
+        free_vk( vk, true );
+        init_vk( outVk );
         // sync cpu/gpu
-        outVk.swap.flightFence = vk.d.flightFences[0];
-        vkWaitForFences( vk.d.device, 1, &vk.swap.flightFence, VK_TRUE, UINT64_MAX );
-        vkResetFences( vk.d.device, 1, &vk.swap.flightFence );
+        outVk.sync.flightIndex = vk.curFrame & 0b11u;
+        outVk.sync.flightFence = vk.d.flightFences[0];
+        vkWaitForFences( vk.d.device, 1, &vk.sync.flightFence, VK_TRUE, UINT64_MAX );
+        vkResetFences( vk.d.device, 1, &vk.sync.flightFence );
         static_assert( std::tuple_size_v< decltype( vk.d.flightSemaphores ) > == DeviceVK::Swap_Image_Count_Max
             , "assumed to be 4 to allow bitwise &b11u with up to 3 frames in flight" );
-        outVk.swap.flightSemaphore = vk.d.flightSemaphores[vk.curFrame & 0b11u];
-        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.swap.flightSemaphore, VK_NULL_HANDLE, &outVk.swap.imageIndex );
-        outVk.swap.presentSemaphore = vk.d.presentSemaphores[vk.swap.imageIndex];
+        outVk.sync.flightSemaphore = vk.d.flightSemaphores[vk.sync.flightIndex];
+        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.sync.flightSemaphore, VK_NULL_HANDLE, &outVk.sync.imageIndex );
+        outVk.sync.presentSemaphore = vk.d.presentSemaphores[vk.sync.imageIndex];
     }
 
     void draw_vk( Out< DataVK > outVk ) {
@@ -443,14 +457,14 @@ namespace app {
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
         vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
 
-        outVk.draw.imageBarrier.image = vk.swapImages[vk.swap.imageIndex];
+        outVk.draw.imageBarrier.image = vk.swapImages[vk.sync.imageIndex];
         outVk.draw.imageBarrier.srcAccessMask = 0;
         outVk.draw.imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         outVk.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
 
-        outVk.draw.colorInfo.imageView = vk.d.swapImageViews[vk.swap.imageIndex];
+        outVk.draw.colorInfo.imageView = vk.d.swapImageViews[vk.sync.imageIndex];
         outVk.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
         outVk.draw.renderInfo.renderArea = { .extent = vk.swapExtent };
         outVk.draw.renderInfo.pColorAttachments = &vk.draw.colorInfo;
@@ -468,18 +482,18 @@ namespace app {
         vkEndCommandBuffer( vk.d.commandBuffers[0] );
         // sync images?
         outVk.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
-        outVk.draw.submitInfo.pWaitSemaphores = &vk.swap.flightSemaphore;
-        outVk.draw.submitInfo.pSignalSemaphores = &vk.swap.presentSemaphore;
-        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.swap.flightFence );
+        outVk.draw.submitInfo.pWaitSemaphores = &vk.sync.flightSemaphore;
+        outVk.draw.submitInfo.pSignalSemaphores = &vk.sync.presentSemaphore;
+        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.sync.flightFence );
 
     } // draw_wk
 
     void show_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
         // sync monitor?
-        outVk.draw.presentInfo.pWaitSemaphores = &vk.swap.presentSemaphore;
+        outVk.draw.presentInfo.pWaitSemaphores = &vk.sync.presentSemaphore;
         outVk.draw.presentInfo.pSwapchains = &vk.d.swapChain;
-        outVk.draw.presentInfo.pImageIndices = &vk.swap.imageIndex;
+        outVk.draw.presentInfo.pImageIndices = &vk.sync.imageIndex;
         vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
     }
 
