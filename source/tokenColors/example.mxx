@@ -154,6 +154,7 @@ namespace app {
 
     struct SwapVK final {
         Unt2 imageIndex;
+        VkFence flightFence;
         VkSemaphore flightSemaphore;
         VkSemaphore presentSemaphore;
     };
@@ -332,6 +333,8 @@ namespace app {
         auto const &vk = outVk;
         // instance
         // -- layers
+        // TODO: add check if validation layers are even supported
+        // \ also only add it only in debug builds
         Flat< CStr, 1 > layers{ "VK_LAYER_KHRONOS_validation" };
         // -- extensions
         std::uint32_t extensionsCount;
@@ -352,6 +355,7 @@ namespace app {
         }
         // device
         // -- physical
+        // -- TODO: add proper physical device selection
         Unt2 deviceCount;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, nullptr );
         std::println( "devices count: {}", deviceCount );
@@ -360,6 +364,9 @@ namespace app {
         deviceCount = 1;
         vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) );
         outVk.physicalDevice = devices[0];
+        // TODO: add determining proper queue family that should support graphics and present mode,
+        // \ but if possibly do not support compute bit, return first index that satisfy it or
+        // \ index that at least support graphics bit and present mode (which should always be a case?)
         outVk.init.queueInfo.queueFamilyIndex = 0;
         // -- info
         Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -398,7 +405,7 @@ namespace app {
         }
         // command
         // -- pool
-        outVk.init.poolInfo.queueFamilyIndex = 0;
+        outVk.init.poolInfo.queueFamilyIndex = vk.init.queueInfo.queueFamilyIndex;
         CHECK_VK( vkCreateCommandPool( vk.d.device, &vk.init.poolInfo, nullptr, &outVk.d.commandPool ) );
         // -- buffer
         outVk.init.bufferInfo.commandPool = vk.d.commandPool;
@@ -420,8 +427,9 @@ namespace app {
     void sync_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
         // sync cpu/gpu
-        vkWaitForFences( vk.d.device, 1, vk.d.flightFences.begin( ), VK_TRUE, UINT64_MAX );
-        vkResetFences( vk.d.device, 1, vk.d.flightFences.begin( ) );
+        outVk.swap.flightFence = vk.d.flightFences[0];
+        vkWaitForFences( vk.d.device, 1, &vk.swap.flightFence, VK_TRUE, UINT64_MAX );
+        vkResetFences( vk.d.device, 1, &vk.swap.flightFence );
         static_assert( std::tuple_size_v< decltype( vk.d.flightSemaphores ) > == DeviceVK::Swap_Image_Count_Max
             , "assumed to be 4 to allow bitwise &b11u with up to 3 frames in flight" );
         outVk.swap.flightSemaphore = vk.d.flightSemaphores[vk.curFrame & 0b11u];
@@ -431,7 +439,7 @@ namespace app {
 
     void draw_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
-
+        // TODO: there would be no need to reset if pool was created with reset flag bit (save one function call!)
         vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
         vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
 
@@ -462,7 +470,7 @@ namespace app {
         outVk.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
         outVk.draw.submitInfo.pWaitSemaphores = &vk.swap.flightSemaphore;
         outVk.draw.submitInfo.pSignalSemaphores = &vk.swap.presentSemaphore;
-        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.d.flightFences[0] );
+        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.swap.flightFence );
 
     } // draw_wk
 
