@@ -79,8 +79,8 @@ typedef char const *Son8CStr;
 #include <stdlib.h>
 #include <time.h>
 
-#define APP_XSIZE 1280
-#define APP_YSIZE 720
+#define APP_XSIZE 640u
+#define APP_YSIZE 360u
 #define APP_ERROR_HANDLER_TEXTSIZE 8u
 #define APP_ERROR_HANDLER_TEXTLAST ( APP_ERROR_HANDLER_TEXTSIZE - 1u )
 
@@ -113,28 +113,33 @@ typedef struct {
     Window root;
     Window window;
     XEvent event;
-    Son8Bool isClosing;
     XSizeHints *sizeHints;
     Atom wmCloseAtom;
-    Son8Unt3 currFrame;
     XImage *image;
     Visual *imageVisual;
     int imageDepth;
+    GC graphicContext;
+} AppX11;
+
+typedef struct {
     AppFrameBuffer frameBuffers[2];
     AppFrameBuffer *waitBuffer;
     AppFrameBuffer *drawBuffer;
-    GC graphicContext;
-} AppX11;
+    Son8Unt3 currFrame;
+    Son8Bool isClosing;
+    AppX11 x11;
+} App;
 /* globals */
 int App_Error_X11;
-AppX11 App_X11;
+App App_Global;
 /* declarations */
 int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
 
-void app_poll( AppX11 *outX11 );
-void app_sync( AppX11 *outX11 );
-void app_draw( AppX11 *outX11 );
-void app_show( AppX11 *outX11 );
+Son8Bool app_init( App *outApp );
+void     app_poll( App *outApp );
+void     app_sync( App *outApp );
+void     app_draw( App *outApp );
+void     app_show( App *outApp );
 
 SON8_EXTERN_CEND
 
@@ -143,11 +148,13 @@ int main( int argc, char *argv[] ) {
     time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
     Son8Unt3 prevFrame = 0u;
-    AppX11 *outX11 = &App_X11;
-    AppX11 const *x11 = &App_X11;
+    App *outApp = &App_Global;
+    App const *app = &App_Global;
+    AppX11 *outX11 = &outApp->x11;
+    AppX11 const *x11 = &app->x11;
     AppError error = Error_None;
-    outX11->drawBuffer = &outX11->frameBuffers[0];
-    outX11->waitBuffer = &outX11->frameBuffers[1];
+    outApp->drawBuffer = &outApp->frameBuffers[0];
+    outApp->waitBuffer = &outApp->frameBuffers[1];
     /* code */
     puts( argv[0] );
     /* checking arguments */
@@ -188,32 +195,32 @@ int main( int argc, char *argv[] ) {
 
     outX11->imageVisual = DefaultVisual( x11->display, x11->screen );
     outX11->imageDepth = DefaultDepth( x11->display, x11->screen );
-    outX11->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)outX11->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
+    outX11->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)outApp->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
     outX11->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
 
     XMapWindow( x11->display, x11->window );
     time( &timeBegSec );
 
-    while ( !x11->isClosing ) {
+    while ( !app->isClosing ) {
         /* NOTE: poll events before rendering */
-        app_poll( outX11 );
+        app_poll( outApp );
         /* NOTE: synchronize before rendering */
         /* -- TODO: find a way make it async */
-        app_sync( outX11 );
+        app_sync( outApp );
         /* NOTE: in between process rendering */
-        app_draw( outX11 );
+        app_draw( outApp );
         /* NOTE: present-swap after rendering */
-        app_show( outX11 );
+        app_show( outApp );
         /* timer */
         time( &timeEndSec );
         timeDiffSec = (intmax_t)timeEndSec - (intmax_t)timeBegSec;
         if ( timeDiffSec ) {
-            fprintf( logFile, "fps (TODO: more precision): %ld\n", ( x11->currFrame - prevFrame ) / (intmax_t)timeDiffSec );
+            fprintf( logFile, "fps (TODO: more precision): %ld\n", ( app->currFrame - prevFrame ) / (intmax_t)timeDiffSec );
             fflush( logFile );
-            prevFrame = x11->currFrame;
+            prevFrame = app->currFrame;
             timeBegSec = timeEndSec;
         }
-        ++outX11->currFrame;
+        ++outApp->currFrame;
     }
     /* cleaning */
     XDestroyWindow( x11->display, x11->window );
@@ -236,8 +243,16 @@ error_argc_:
 SON8_EXTERN_CBEG
 
 /* -- app definitions */
-void app_poll( AppX11 *outX11 ) {
-    AppX11 const *x11 = outX11;
+Son8Bool app_init( App *outApp ) {
+    printf( "%ld", outApp->currFrame );
+    return Error_None;
+}
+
+
+void app_poll( App *outApp ) {
+    App const *app = outApp;
+    AppX11 *outX11 = &outApp->x11;
+    AppX11 const *x11 = &app->x11;
 
     while ( XPending( x11->display ) ) {
         XNextEvent( x11->display, &outX11->event );
@@ -246,7 +261,7 @@ void app_poll( AppX11 *outX11 ) {
         case KeyPress: break;
         case ButtonPress: break;
         case ClientMessage: {
-            if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) outX11->isClosing = 1;
+            if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) outApp->isClosing = 1;
                 break;
         }
             default: break;
@@ -255,26 +270,26 @@ void app_poll( AppX11 *outX11 ) {
 
 }
 
-void app_sync( AppX11 *outX11 ) {
-    AppX11 *x11 = outX11;
+void app_sync( App *outApp ) {
+    AppX11 const *x11 = &outApp->x11;
     XPutImage( x11->display, x11->window, x11->graphicContext, x11->image, 0, 0, 0, 0, APP_XSIZE, APP_YSIZE );
 }
 
-void app_draw( AppX11 *outX11 ) {
+void app_draw( App *outApp ) {
     Son8Size x, y;
     /* TODO: write NASM function to handle logic of loop and writing */
     for ( x = 0u; x < APP_XSIZE; ++x ) {
         for ( y = 0u; y < APP_YSIZE; ++y ) {
-            outX11->drawBuffer->data[x][y] = 0xFF1A6868u;
+            outApp->drawBuffer->data[x][y] = 0xFF1A6868u;
         }
     }
 }
 
-void app_show( AppX11 *outX11 ) {
-    AppX11 *x11 = outX11;
-    outX11->waitBuffer = &outX11->frameBuffers[x11->currFrame & 1u];
-    outX11->drawBuffer = &outX11->frameBuffers[(x11->currFrame + 1) & 1u];
-    outX11->image->data = (char *)outX11->waitBuffer->data;
+void app_show( App *outApp ) {
+    App *app = outApp;
+    outApp->waitBuffer = &outApp->frameBuffers[app->currFrame & 1u];
+    outApp->drawBuffer = &outApp->frameBuffers[(app->currFrame + 1) & 1u];
+    outApp->x11.image->data = (char *)outApp->waitBuffer->data;
 }
 
 int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
