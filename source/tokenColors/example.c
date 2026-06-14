@@ -87,20 +87,26 @@ typedef char const *Son8CStr;
 SON8_EXTERN_CBEG
 
 typedef enum {
-    Error_None,
-    Error_Argc,
-    Error_Log,
-    Error_Init,
-    Error_Window,
-    Error_Last_
+    App_Error_None,
+    App_Error_Argc,
+    App_Error_Log,
+    App_Error_Init,
+    App_Error_Window,
+    App_Error_Unknown_X11,
+    App_Error_Image_X11,
+    App_Error_Graphic_X11,
+    App_Error_Last_
 } AppError;
 
-static Son8CStr Text_Error[Error_Last_] = {
+static Son8CStr App_Text_Error[App_Error_Last_] = {
     "none",
     "arguments count failed",
     "fopen failed",
     "XOpenDisplay failed",
     "XCreateSimpleWindow failed",
+    "unknown x11 initialization error after window creation",
+    "XCreateImage failed",
+    "XCreateGC failed"
 };
 
 typedef struct {
@@ -126,17 +132,18 @@ typedef struct {
     AppFrameBuffer *waitBuffer;
     AppFrameBuffer *drawBuffer;
     Son8Unt3 currFrame;
-    Son8Bool isClosing;
     AppX11 x11;
 } App;
 /* globals */
-int App_Error_X11;
 App App_Global;
+AppError App_Global_Error;
+Son8Bool App_Is_Closing;
 /* declarations */
 int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
 
-Son8Bool app_init( App *outApp );
-void     app_poll( App *outApp );
+void     x11_free( AppX11 const *outApp );
+AppError x11_init( AppX11 *outApp );
+void     x11_poll( AppX11 *outX11 );
 void     app_sync( App *outApp );
 void     app_draw( App *outApp );
 void     app_show( App *outApp );
@@ -152,58 +159,36 @@ int main( int argc, char *argv[] ) {
     App const *app = &App_Global;
     AppX11 *outX11 = &outApp->x11;
     AppX11 const *x11 = &app->x11;
-    AppError error = Error_None;
+    AppError error = App_Error_None;
     outApp->drawBuffer = &outApp->frameBuffers[0];
     outApp->waitBuffer = &outApp->frameBuffers[1];
     /* code */
     puts( argv[0] );
     /* checking arguments */
-    if ( argc > 1 && ( argv[1][0] != '-' || argv[1][1] != 'l' || argv[1][2] != '\0' ) && ( error = Error_Argc ) ) goto error_argc_;
+    if ( argc > 1 && ( argv[1][0] != '-' || argv[1][1] != 'l' || argv[1][2] != '\0' ) && ( error = App_Error_Argc ) ) goto error_argc_;
     if ( argc == 2 ) {
         /* open log file */
         logFile = fopen( "temp.clog.txt", "w" );
-        if ( !logFile && (error = Error_Log ) ) goto error_log_;
+        if ( !logFile && (error = App_Error_Log ) ) goto error_log_;
         puts( "logging into <temp.clog.txt> file success" );
     } else logFile = stdout;
-    /* init display */
-    outX11->display = XOpenDisplay( NULL );
-    if ( x11->display == NULL && ( error = Error_Init ) ) goto error_init_;
-    puts( "XOpenDisplay success" );
+    /* init application */
     XSetErrorHandler( app_error_handler_x11 );
-    /* creating window */
-    outX11->screen = DefaultScreen( x11->display );
-    outX11->root = RootWindow( x11->display, x11->screen );
-    outX11->window = XCreateSimpleWindow( x11->display, x11->root, 0, 0, APP_XSIZE, APP_YSIZE, 0, 0, 0);
-    XStoreName( x11->display, x11->window, "X11 Window" );
-    XSync( x11->display, False );
-    if ( App_Error_X11 && ( error = Error_Window ) ) goto error_window_;
-    puts( "XCreateSimpleWindow success" );
-    XSetErrorHandler( NULL );
-
-    outX11->sizeHints = XAllocSizeHints( );
-    if ( x11->sizeHints ) {
-        outX11->sizeHints->flags = PMinSize | PMaxSize;
-        outX11->sizeHints->min_width = outX11->sizeHints->max_width = APP_XSIZE;
-        outX11->sizeHints->min_height = outX11->sizeHints->max_height = APP_YSIZE;
-        XSetWMNormalHints(x11->display, x11->window, x11->sizeHints );
-        XFree( x11->sizeHints );
-    }
-    outX11->wmCloseAtom = XInternAtom( x11->display, "WM_DELETE_WINDOW", False );
-    XSetWMProtocols( x11->display, x11->window, &outX11->wmCloseAtom, 1 );
-    /* processing events */
-    XSelectInput( x11->display, x11->window, ExposureMask | KeyPressMask | ButtonPressMask );
+    if ( ( error = x11_init( outX11 ) ) ) goto error_init_;
+    puts( "x11_init success" );
 
     outX11->imageVisual = DefaultVisual( x11->display, x11->screen );
     outX11->imageDepth = DefaultDepth( x11->display, x11->screen );
     outX11->image = XCreateImage( x11->display, x11->imageVisual, x11->imageDepth, ZPixmap, 0, (char *)outApp->waitBuffer->data, APP_XSIZE, APP_YSIZE, 32, 0 );
+    if ( outX11->image == NULL && ( error = App_Error_Image_X11 ) ) goto error_image_;
     outX11->graphicContext = XCreateGC( x11->display, x11->window, 0, NULL );
+    if ( App_Global_Error && ( error = App_Error_Graphic_X11 ) ) goto error_graphic_;
 
-    XMapWindow( x11->display, x11->window );
     time( &timeBegSec );
 
-    while ( !app->isClosing ) {
+    while ( !App_Is_Closing ) {
         /* NOTE: poll events before rendering */
-        app_poll( outApp );
+        x11_poll( outX11 );
         /* NOTE: synchronize before rendering */
         /* -- TODO: find a way make it async */
         app_sync( outApp );
@@ -223,17 +208,20 @@ int main( int argc, char *argv[] ) {
         ++outApp->currFrame;
     }
     /* cleaning */
-    XDestroyWindow( x11->display, x11->window );
-error_window_:
-    XCloseDisplay( x11->display );
+    XFreeGC( x11->display, x11->graphicContext );
+error_graphic_:
+    outX11->image->data = NULL;
+    XDestroyImage( x11->image );
+error_image_:
+    x11_free( x11 );
 error_init_:
     fclose( logFile );
 error_log_:
 error_argc_:
-    assert( error < Error_Last_ );
+    assert( error < App_Error_Last_ );
 
-    if ( error != Error_None ) {
-        fprintf( stderr, "error: %s\n", Text_Error[error] );
+    if ( error != App_Error_None ) {
+        fprintf( stderr, "error: %s\n", App_Text_Error[error] );
         return EXIT_FAILURE;
     }
 
@@ -242,17 +230,58 @@ error_argc_:
 
 SON8_EXTERN_CBEG
 
-/* -- app definitions */
-Son8Bool app_init( App *outApp ) {
-    printf( "%ld", outApp->currFrame );
-    return Error_None;
+/* definitions */
+void x11_free( AppX11 const *x11 ) {
+    XDestroyWindow( x11->display, x11->window );
+    XCloseDisplay( x11->display );
 }
 
+AppError x11_init( AppX11 *outX11 ) {
+    AppError error = App_Error_None;
+    AppX11 const *x11 = outX11;
+    outX11->display = XOpenDisplay( NULL );
+    if ( x11->display == NULL && ( error = App_Error_Init ) ) goto error_init_;
+    puts( "XOpenDisplay success" );
+    /* creating window */
+    outX11->screen = DefaultScreen( x11->display );
+    outX11->root = RootWindow( x11->display, x11->screen );
+    outX11->window = XCreateSimpleWindow( x11->display, x11->root, 0, 0, APP_XSIZE, APP_YSIZE, 0, 0, 0);
+    XStoreName( x11->display, x11->window, "X11 Window" );
+    XSync( x11->display, False );
+    if ( App_Global_Error && ( error = App_Error_Window ) ) goto error_window_;
+    puts( "XCreateSimpleWindow success" );
 
-void app_poll( App *outApp ) {
-    App const *app = outApp;
-    AppX11 *outX11 = &outApp->x11;
-    AppX11 const *x11 = &app->x11;
+    outX11->sizeHints = XAllocSizeHints( );
+    if ( x11->sizeHints ) {
+        outX11->sizeHints->flags = PMinSize | PMaxSize;
+        outX11->sizeHints->min_width = outX11->sizeHints->max_width = APP_XSIZE;
+        outX11->sizeHints->min_height = outX11->sizeHints->max_height = APP_YSIZE;
+        XSetWMNormalHints(x11->display, x11->window, x11->sizeHints );
+        XFree( x11->sizeHints );
+    }
+    outX11->wmCloseAtom = XInternAtom( x11->display, "WM_DELETE_WINDOW", False );
+    XSetWMProtocols( x11->display, x11->window, &outX11->wmCloseAtom, 1 );
+    /* processing events */
+    XSelectInput( x11->display, x11->window, ExposureMask | KeyPressMask | ButtonPressMask );
+
+    XMapWindow( x11->display, x11->window );
+    printf( "%d", outX11->screen );
+
+    if ( App_Global_Error && ( error = App_Error_Unknown_X11 ) ) goto error_unknown_;
+
+    assert( error == App_Error_None );
+    return error;
+    /* cleaning */
+error_unknown_:
+    XDestroyWindow( x11->display, x11->window );
+error_window_:
+    XCloseDisplay( x11->display );
+error_init_:
+    return error;
+}
+
+void x11_poll( AppX11 *outX11 ) {
+    AppX11 const *x11 = outX11;
 
     while ( XPending( x11->display ) ) {
         XNextEvent( x11->display, &outX11->event );
@@ -261,7 +290,7 @@ void app_poll( App *outApp ) {
         case KeyPress: break;
         case ButtonPress: break;
         case ClientMessage: {
-            if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) outApp->isClosing = 1;
+            if ( (Son8Unt3)x11->event.xclient.data.l[0] == x11->wmCloseAtom ) App_Is_Closing = 1;
                 break;
         }
             default: break;
@@ -297,8 +326,8 @@ int app_error_handler_x11( Display *dpy, XErrorEvent *err ) {
     XGetErrorText( dpy, err->error_code, text, sizeof( text ) );
     text[APP_ERROR_HANDLER_TEXTLAST] = 0;
     fprintf( stderr, "app_error_handler_x11 error text: %s", text );
-    App_Error_X11 = err->error_code;
-    assert( App_Error_X11 && "App Error X11 must be not equal zero" );
+    App_Global_Error = err->error_code;
+    assert( App_Global_Error && "App Error X11 must be not equal zero" );
     return 0;
 }
 
