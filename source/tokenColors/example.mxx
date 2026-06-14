@@ -22,7 +22,8 @@
 import std;
 #endif//APP_IMPORT_STD
 
-#define CHECK_VK( res ) if ( res != VK_SUCCESS ) { app::throw_error( "Vulkan Error: ", std::to_string( res ) ); }
+#define APP_ERROR_VK( res ) if ( res != VK_SUCCESS ) std::cerr << app::concat( "Vulkan Error: ", std::to_string( res ), "\n" );
+#define APP_THROW_VK( res ) if ( res != VK_SUCCESS ) throw app::concat( "Vulkan Error: ", std::to_string( res ) );
 
 #define APP_CHECK_FREE( pname ) \
 template< Bool check = false > void free_##pname( ) const <% \
@@ -53,14 +54,14 @@ namespace app {
     template< typename Type, Size size > using Flat = std::array< Type, size >;
     template< typename Type, typename Err > using Expect = std::expected< Type, Err >;
     using ExpectVoid = Expect< void, String >;
+    static constexpr auto Zero = 0u;
 
-    auto throw_error( std::convertible_to< std::string_view > auto &&...args ) -> String {
-        static_assert( sizeof...( args ) > 0u, "app::throw_error requires at least one parameter" );
-        Size totalSize = ( StringView{ args }.size( ) + ... + 0u );
+    auto concat( std::convertible_to< std::string_view > auto &&...args ) -> String {
+        static_assert( sizeof...( args ) > Zero, "app::throw_error requires at least one parameter" );
+        Size totalSize = ( StringView{ args }.size( ) + ... + Zero );
         String result;
         result.reserve( totalSize );
         ( result.append( args ), ... );
-        throw result;
         return result;
     }
 
@@ -251,7 +252,11 @@ auto main( [[maybe_unused]] int argc, [[maybe_unused]] char *argv[] ) -> int try
     .transform( []( ) {
         std::println( "init_sdl success" );
     })
-    .transform_error( []( String const &str ) { return app::throw_error( str, ": ", SDL_GetError( ) ); } )
+    .transform_error( []( String const &str ) {
+        auto error = app::concat( str, ": ", SDL_GetError( ) );
+        throw error;
+        return error;
+    })
     .value( );
 
     app::init_sdl_with_vk( app.sdl, app.outVk );
@@ -327,7 +332,7 @@ namespace app {
         std::uint32_t extensionsCount;
         auto extensions = SDL_Vulkan_GetInstanceExtensions( &extensionsCount );
         std::println( "SDL vulkan activated extensions: " );
-        for ( auto i = 0u; i < extensionsCount; ++i ) {
+        for ( auto i = Zero; i < extensionsCount; ++i ) {
             std::println( "\t{}", extensions[i] );
         }
         // -- info
@@ -335,10 +340,10 @@ namespace app {
         outVk.init.instanceInfo.ppEnabledLayerNames = layers.data( );
         outVk.init.instanceInfo.enabledExtensionCount = extensionsCount;
         outVk.init.instanceInfo.ppEnabledExtensionNames = extensions;
-        CHECK_VK( vkCreateInstance( &vk.init.instanceInfo, nullptr, &outVk.i.instance ) );
+        APP_THROW_VK( vkCreateInstance( &vk.init.instanceInfo, nullptr, &outVk.i.instance ) );
         // surface
         if ( not SDL_Vulkan_CreateSurface( sdl.window, vk.i.instance, nullptr, &outVk.i.surface) ) {
-            throw_error( "SDL_Vulkan_CreateSurface failed: ", SDL_GetError( ) );
+            throw concat( "SDL_Vulkan_CreateSurface failed: ", SDL_GetError( ) );
         }
     }
 
@@ -366,35 +371,66 @@ namespace app {
 
     void init_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
+        static constexpr auto Queue_Not_Found = std::numeric_limits< Unt2 >::max( );
         // device
         // -- physical
         Grow< VkPhysicalDevice > devices;
         // -- NOTE: assuming that at least one physical device exists
         // -- \ (accept seqfault here, there no reasons to not accept it in this case)
         devices.resize( 1 );
-        Unt2 deviceIndex = 0u, deviceCount = 1u;
-        vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) );
-        if ( not deviceCount ) throw_error( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
-        else if ( deviceCount > 1 ) {
-            // TODO: check if first one discrete if not try to find better device
+        Unt2 deviceIndex = Zero, deviceCount = 1u;
+        APP_THROW_VK( vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) ) );
+        if ( not deviceCount ) throw concat( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
+        else if ( deviceCount > 1u ) {
+            VkPhysicalDeviceProperties currProps;
+            vkGetPhysicalDeviceProperties(devices[deviceIndex], &currProps );
+            if ( currProps.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ) {
+                devices.resize( deviceCount );
+                APP_THROW_VK( vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) ) );
+                for ( auto i = Zero; i < deviceCount; ++i ) {
+                    vkGetPhysicalDeviceProperties(devices[i], &currProps );
+                    switch ( currProps.deviceType ) {
+                    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: deviceIndex = i; goto device_selected_;
+                    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: deviceIndex = i; continue;
+                        default: continue;
+                    }
+                }
+            }
         }
+    device_selected_:
         outVk.physicalDevice = devices[deviceIndex];
-        // TODO: add determining proper queue family that should support graphics and present mode,
-        // \ but if possibly do not support compute bit, return first index that satisfy it or
-        // \ index that at least support graphics bit and present mode (which should always be a case?)
-        outVk.init.queueInfo.queueFamilyIndex = 0;
+        Grow< VkQueueFamilyProperties > queues;
+        Unt2 queueIndex = Queue_Not_Found, queueCount;
+        vkGetPhysicalDeviceQueueFamilyProperties( vk.physicalDevice, &queueCount, nullptr );
+        if ( not queueCount ) throw concat( "vkGetPhysicalDeviceQueueFamilyProperties failed: zero family queues" );
+        queues.resize( queueCount );
+        vkGetPhysicalDeviceQueueFamilyProperties( vk.physicalDevice, &queueCount, queues.data( ) );
+        // NOTE: ideally find queue family with graphics support but without compute support
+        for ( auto i = Zero; i < queueCount; ++i ) {
+            auto queueProps = queues[i];
+            auto flags = queueProps.queueFlags;
+            auto isGraphics = flags & VK_QUEUE_GRAPHICS_BIT;
+            auto isCompute = flags & VK_QUEUE_COMPUTE_BIT;
+            VkBool32 isPresent = VK_FALSE;
+            APP_ERROR_VK( vkGetPhysicalDeviceSurfaceSupportKHR(vk.physicalDevice, i, vk.i.surface, &isPresent ) );
+            if ( not ( isGraphics && isPresent ) ) continue;
+            queueIndex = i;
+            if ( not isCompute ) break;
+        }
+        if ( queueIndex == Queue_Not_Found ) throw "App::init_vk failed: queue family without graphics and present support"s;
+        outVk.init.queueInfo.queueFamilyIndex = queueIndex;
         // -- info
         Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
         outVk.init.deviceInfo.pQueueCreateInfos = &vk.init.queueInfo;
         outVk.init.deviceInfo.enabledExtensionCount = deviceExtensions.size( );
         outVk.init.deviceInfo.ppEnabledExtensionNames = deviceExtensions.data( );
-        CHECK_VK( vkCreateDevice( vk.physicalDevice, &vk.init.deviceInfo, nullptr, &outVk.d.device ) );
+        APP_THROW_VK( vkCreateDevice( vk.physicalDevice, &vk.init.deviceInfo, nullptr, &outVk.d.device ) );
         // -- queue
-        vkGetDeviceQueue( vk.d.device, 0, 0, &outVk.graphicsQueue );
+        vkGetDeviceQueue( vk.d.device, vk.init.queueInfo.queueFamilyIndex, Zero, &outVk.graphicsQueue );
         // swap
         // -- chain
         VkSurfaceCapabilitiesKHR caps;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.i.surface, &caps );
+        APP_THROW_VK( vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.i.surface, &caps ) );
         outVk.swapExtent = caps.currentExtent;
         outVk.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
         outVk.init.swapInfo.surface = vk.i.surface;
@@ -402,39 +438,39 @@ namespace app {
         outVk.init.swapInfo.imageExtent = vk.swapExtent;
         outVk.init.swapInfo.minImageCount = caps.minImageCount;
         outVk.init.swapInfo.preTransform = caps.currentTransform;
-        CHECK_VK( vkCreateSwapchainKHR( vk.d.device, &vk.init.swapInfo, nullptr, &outVk.d.swapChain ) );
+        APP_THROW_VK( vkCreateSwapchainKHR( vk.d.device, &vk.init.swapInfo, nullptr, &outVk.d.swapChain ) );
         // -- images
         Unt2 swapImageCount;
-        vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr );
-        if ( swapImageCount > DeviceVK::Swap_Image_Count_Max ) throw_error( "swap image count assumed to be not larger then 4" );
+        APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr ) );
+        if ( swapImageCount > DeviceVK::Swap_Image_Count_Max ) throw "swap image count assumed to be not larger then 4"s;
         outVk.swapImages.resize( swapImageCount );
-        vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, outVk.swapImages.data( ) );
+        APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, outVk.swapImages.data( ) ) );
         // -- views
         outVk.d.swapImageViews.resize( swapImageCount );
         outVk.init.viewInfo.format = vk.swapFormat;
-        for ( Size i = 0u; i < swapImageCount; ++i ) {
+        for ( Size i = Zero; i < swapImageCount; ++i ) {
             outVk.init.viewInfo.image = vk.swapImages[i];
-            CHECK_VK( vkCreateImageView( vk.d.device, &vk.init.viewInfo, nullptr, &outVk.d.swapImageViews[i] ) );
+            APP_THROW_VK( vkCreateImageView( vk.d.device, &vk.init.viewInfo, nullptr, &outVk.d.swapImageViews[i] ) );
         }
         // command
         // -- pool
         outVk.init.poolInfo.queueFamilyIndex = vk.init.queueInfo.queueFamilyIndex;
-        CHECK_VK( vkCreateCommandPool( vk.d.device, &vk.init.poolInfo, nullptr, &outVk.d.commandPool ) );
+        APP_THROW_VK( vkCreateCommandPool( vk.d.device, &vk.init.poolInfo, nullptr, &outVk.d.commandPool ) );
         // -- buffer
         outVk.init.bufferInfo.commandPool = vk.d.commandPool;
         outVk.init.bufferInfo.commandBufferCount = vk.d.commandBuffers.size( );
-        CHECK_VK( vkAllocateCommandBuffers( vk.d.device, &vk.init.bufferInfo, outVk.d.commandBuffers.data( ) ) );
+        APP_THROW_VK( vkAllocateCommandBuffers( vk.d.device, &vk.init.bufferInfo, outVk.d.commandBuffers.data( ) ) );
         // sync
         // -- semaphores
         for ( auto &sema : outVk.d.flightSemaphores ) {
-            CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
+            APP_THROW_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         outVk.d.presentSemaphores.resize( swapImageCount );
         for ( auto &sema : outVk.d.presentSemaphores ) {
-            CHECK_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
+            APP_THROW_VK( vkCreateSemaphore( vk.d.device, &vk.init.semaInfo, nullptr, &sema ) );
         }
         // -- fences
-        CHECK_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, outVk.d.flightFences.begin( ) ) );
+        APP_THROW_VK( vkCreateFence( vk.d.device, &vk.init.fenceInfo, nullptr, outVk.d.flightFences.begin( ) ) );
     } // init_vk
 
     void sync_vk( Out< DataVK > outVk ) {
@@ -445,27 +481,27 @@ namespace app {
         // sync cpu/gpu
         outVk.sync.flightIndex = vk.curFrame & 0b11u;
         outVk.sync.flightFence = vk.d.flightFences[0];
-        vkWaitForFences( vk.d.device, 1, &vk.sync.flightFence, VK_TRUE, UINT64_MAX );
-        vkResetFences( vk.d.device, 1, &vk.sync.flightFence );
+        APP_ERROR_VK( vkWaitForFences( vk.d.device, 1, &vk.sync.flightFence, VK_TRUE, UINT64_MAX ) );
+        APP_ERROR_VK( vkResetFences( vk.d.device, 1, &vk.sync.flightFence ) );
         static_assert( std::tuple_size_v< decltype( vk.d.flightSemaphores ) > == DeviceVK::Swap_Image_Count_Max
             , "assumed to be 4 to allow bitwise &b11u with up to 3 frames in flight" );
         outVk.sync.flightSemaphore = vk.d.flightSemaphores[vk.sync.flightIndex];
-        vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.sync.flightSemaphore, VK_NULL_HANDLE, &outVk.sync.imageIndex );
+        APP_ERROR_VK( vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.sync.flightSemaphore, VK_NULL_HANDLE, &outVk.sync.imageIndex ) );
         outVk.sync.presentSemaphore = vk.d.presentSemaphores[vk.sync.imageIndex];
     }
 
     void draw_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
         // TODO: there would be no need to reset if pool was created with reset flag bit (save one function call!)
-        vkResetCommandBuffer( vk.d.commandBuffers[0], 0);
-        vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo );
+        APP_ERROR_VK( vkResetCommandBuffer( vk.d.commandBuffers[0], Zero ) );
+        APP_ERROR_VK( vkBeginCommandBuffer( vk.d.commandBuffers[0], &vk.draw.beginInfo ) );
 
         outVk.draw.imageBarrier.image = vk.swapImages[vk.sync.imageIndex];
-        outVk.draw.imageBarrier.srcAccessMask = 0;
+        outVk.draw.imageBarrier.srcAccessMask = Zero;
         outVk.draw.imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         outVk.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
+        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, Zero, Zero, nullptr, Zero, nullptr, 1, &vk.draw.imageBarrier );
 
         outVk.draw.colorInfo.imageView = vk.d.swapImageViews[vk.sync.imageIndex];
         outVk.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
@@ -480,14 +516,14 @@ namespace app {
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         outVk.draw.imageBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         outVk.draw.imageBarrier.dstAccessMask = 0;
-        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &vk.draw.imageBarrier );
+        vkCmdPipelineBarrier( vk.d.commandBuffers[0], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, Zero, Zero, nullptr, Zero, nullptr, 1, &vk.draw.imageBarrier );
 
-        vkEndCommandBuffer( vk.d.commandBuffers[0] );
+        APP_ERROR_VK( vkEndCommandBuffer( vk.d.commandBuffers[0] ) );
         // sync images?
         outVk.draw.submitInfo.pCommandBuffers = vk.d.commandBuffers.begin( );
         outVk.draw.submitInfo.pWaitSemaphores = &vk.sync.flightSemaphore;
         outVk.draw.submitInfo.pSignalSemaphores = &vk.sync.presentSemaphore;
-        vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.sync.flightFence );
+        APP_ERROR_VK( vkQueueSubmit( vk.graphicsQueue, 1, &vk.draw.submitInfo, vk.sync.flightFence ) );
 
     } // draw_wk
 
@@ -497,7 +533,7 @@ namespace app {
         outVk.draw.presentInfo.pWaitSemaphores = &vk.sync.presentSemaphore;
         outVk.draw.presentInfo.pSwapchains = &vk.d.swapChain;
         outVk.draw.presentInfo.pImageIndices = &vk.sync.imageIndex;
-        vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo);
+        APP_THROW_VK( vkQueuePresentKHR( vk.graphicsQueue, &vk.draw.presentInfo) );
     }
 
 } // namespace app
