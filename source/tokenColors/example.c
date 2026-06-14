@@ -79,21 +79,21 @@ typedef char const *Son8CStr;
 #include <stdlib.h>
 #include <time.h>
 
-#define APP_XSIZE 640
-#define APP_YSIZE 360
+#define APP_XSIZE 1280
+#define APP_YSIZE 720
 #define APP_ERROR_HANDLER_TEXTSIZE 8u
 #define APP_ERROR_HANDLER_TEXTLAST ( APP_ERROR_HANDLER_TEXTSIZE - 1u )
 
 SON8_EXTERN_CBEG
 
-enum Error {
+typedef enum {
     Error_None,
     Error_Argc,
     Error_Log,
     Error_Init,
     Error_Window,
     Error_Last_
-};
+} AppError;
 
 static Son8CStr Text_Error[Error_Last_] = {
     "none",
@@ -103,11 +103,11 @@ static Son8CStr Text_Error[Error_Last_] = {
     "XCreateSimpleWindow failed",
 };
 
-struct AppFrameBuffer {
+typedef struct {
     Son8Unt2 data[APP_XSIZE][APP_YSIZE];
-};
+} AppFrameBuffer;
 
-struct AppX11 {
+typedef struct {
     Display *display;
     int screen;
     Window root;
@@ -120,21 +120,21 @@ struct AppX11 {
     XImage *image;
     Visual *imageVisual;
     int imageDepth;
-    struct AppFrameBuffer frameBuffers[2];
-    struct AppFrameBuffer *waitBuffer;
-    struct AppFrameBuffer *drawBuffer;
+    AppFrameBuffer frameBuffers[2];
+    AppFrameBuffer *waitBuffer;
+    AppFrameBuffer *drawBuffer;
     GC graphicContext;
-};
+} AppX11;
 /* globals */
 int App_Error_X11;
-struct AppX11 App_X11;
+AppX11 App_X11;
 /* declarations */
 int  app_error_handler_x11( Display *dpy, XErrorEvent *err );
 
-void app_poll( struct AppX11 *outX11 );
-void app_sync( struct AppX11 *outX11 );
-void app_draw( struct AppX11 *outX11 );
-void app_show( struct AppX11 *outX11 );
+void app_poll( AppX11 *outX11 );
+void app_sync( AppX11 *outX11 );
+void app_draw( AppX11 *outX11 );
+void app_show( AppX11 *outX11 );
 
 SON8_EXTERN_CEND
 
@@ -143,9 +143,9 @@ int main( int argc, char *argv[] ) {
     time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
     Son8Unt3 prevFrame = 0u;
-    struct AppX11 *outX11 = &App_X11;
-    struct AppX11 const *x11 = &App_X11;
-    Son8Size error = Error_None;
+    AppX11 *outX11 = &App_X11;
+    AppX11 const *x11 = &App_X11;
+    AppError error = Error_None;
     outX11->drawBuffer = &outX11->frameBuffers[0];
     outX11->waitBuffer = &outX11->frameBuffers[1];
     /* code */
@@ -176,8 +176,8 @@ int main( int argc, char *argv[] ) {
     outX11->sizeHints = XAllocSizeHints( );
     if ( x11->sizeHints ) {
         outX11->sizeHints->flags = PMinSize | PMaxSize;
-        outX11->sizeHints->min_width = outX11->sizeHints->max_width = 640;
-        outX11->sizeHints->min_height = outX11->sizeHints->max_height = 360;
+        outX11->sizeHints->min_width = outX11->sizeHints->max_width = APP_XSIZE;
+        outX11->sizeHints->min_height = outX11->sizeHints->max_height = APP_YSIZE;
         XSetWMNormalHints(x11->display, x11->window, x11->sizeHints );
         XFree( x11->sizeHints );
     }
@@ -236,8 +236,8 @@ error_argc_:
 SON8_EXTERN_CBEG
 
 /* -- app definitions */
-void app_poll( struct AppX11 *outX11 ) {
-    struct AppX11 const *x11 = outX11;
+void app_poll( AppX11 *outX11 ) {
+    AppX11 const *x11 = outX11;
 
     while ( XPending( x11->display ) ) {
         XNextEvent( x11->display, &outX11->event );
@@ -255,12 +255,12 @@ void app_poll( struct AppX11 *outX11 ) {
 
 }
 
-void app_sync( struct AppX11 *outX11 ) {
-    struct AppX11 *x11 = outX11;
+void app_sync( AppX11 *outX11 ) {
+    AppX11 *x11 = outX11;
     XPutImage( x11->display, x11->window, x11->graphicContext, x11->image, 0, 0, 0, 0, APP_XSIZE, APP_YSIZE );
 }
 
-void app_draw( struct AppX11 *outX11 ) {
+void app_draw( AppX11 *outX11 ) {
     Son8Size x, y;
     /* TODO: write NASM function to handle logic of loop and writing */
     for ( x = 0u; x < APP_XSIZE; ++x ) {
@@ -270,8 +270,8 @@ void app_draw( struct AppX11 *outX11 ) {
     }
 }
 
-void app_show( struct AppX11 *outX11 ) {
-    struct AppX11 *x11 = outX11;
+void app_show( AppX11 *outX11 ) {
+    AppX11 *x11 = outX11;
     outX11->waitBuffer = &outX11->frameBuffers[x11->currFrame & 1u];
     outX11->drawBuffer = &outX11->frameBuffers[(x11->currFrame + 1) & 1u];
     outX11->image->data = (char *)outX11->waitBuffer->data;

@@ -4,6 +4,7 @@ BUILDS := $(shell pwd)/build
 SOURCE := $(shell pwd)
 IMPORT := /usr/include/c++/16.1.1
 WARNER := -Werror -Wpedantic -Wall -Wextra -Wno-missing-field-initializers
+SYMBOL := -g
 # c variables
 C_TARGET := $(BUILDS)/program-c
 C_OBJECT := $(BUILDS)/cobject.o
@@ -63,7 +64,7 @@ $(C_TARGET): $(C_OBJECT)
 # -- object
 $(C_OBJECT): $(C_SOURCE)
 	@mkdir -p $(BUILDS)
-	gcc -g -std=c90 $(WARNER) -c $(C_SOURCE) -o $(C_OBJECT)
+	gcc $(SYMBOL) -std=c90 $(WARNER) -c $(C_SOURCE) -o $(C_OBJECT)
 # cxx example related targets
 # -- run
 run-cxx: $(CXX_TARGET)
@@ -76,7 +77,7 @@ $(CXX_TARGET): $(CXX_OBJECT)
 # -- object
 $(CXX_OBJECT): $(CXX_SOURCE)
 	@mkdir -p $(BUILDS)
-	g++ -g -std=c++17 $(WARNER) -c $(CXX_SOURCE) -o $(CXX_OBJECT)
+	g++ $(SYMBOL) -std=c++17 $(WARNER) -c $(CXX_SOURCE) -o $(CXX_OBJECT)
 # mxx example related targets
 # -- run
 run-mxx: $(MXX_TARGET)
@@ -85,14 +86,15 @@ run-mxx: $(MXX_TARGET)
 mxx: $(MXX_TARGET)
 # -- link executable
 $(MXX_TARGET): $(MXX_OBJECT)
-	g++ -lSDL3 -lvulkan $(MXX_IMPOBJ) $(MXX_OBJECT) -o $(MXX_TARGET)
+	g++ -lSDL3 -lvulkan $(MXX_IMPOBJ) $(MXX_OBJECT) -o $(MXX_TARGET) 
+# NOTE: cd into build directory to generate and access gcm from there
 # -- compile object file
 $(MXX_OBJECT): $(MXX_SOURCE) $(MXX_IMPOBJ)
-	cd $(BUILDS) && g++ -g -std=c++23 -fmodules -DAPP_IMPORT_STD $(WARNER) -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)
+	cd $(BUILDS) && g++ $(SYMBOL) -std=c++23 -fmodules -DAPP_IMPORT_STD $(WARNER) -c -x c++ $(MXX_SOURCE) -o $(MXX_OBJECT)
 # -- import std for modules
 $(MXX_IMPOBJ): $(MXX_IMPORT)
 	@mkdir -p $(BUILDS)
-	cd $(BUILDS) && g++ -g -std=c++23 -fmodules -c $(MXX_IMPORT) -o $(MXX_IMPOBJ)
+	cd $(BUILDS) && g++ $(SYMBOL) -std=c++23 -fmodules -c $(MXX_IMPORT) -o $(MXX_IMPOBJ)
 # remove build artifacts
 clean:
 	@rm -rf $(BUILDS)
