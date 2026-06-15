@@ -64,6 +64,15 @@ namespace app {
         ( result.append( args ), ... );
         return result;
     }
+    // NOTE: always returns either of [1,2,4,8]
+    constexpr auto get_flight_frames( Size requestedFlightFrames ) -> Size {
+        switch ( requestedFlightFrames ) {
+        case 1u: return 1u;
+        case 2u: return 2u;
+        case 3u: [[fallthrough]]; case 4u: return 4u;
+            default: return 8u;
+        }
+    }
 
     struct DataSDL {
         using Expected = Expect< void, String >;
@@ -73,6 +82,8 @@ namespace app {
     };
 
     struct InstanceVK {
+        static constexpr bool Keep = true;
+        static_assert( Keep == true, "app::InstanceVk Keep helper should always be true" );
         VkInstance instance;
         VkSurfaceKHR surface;
         APP_CHECK_FREE( instance ) vkDestroyInstance( instance, nullptr ); %>
@@ -80,17 +91,20 @@ namespace app {
     };
 
     struct DeviceVK {
-        static constexpr auto Flight_Frames_Max = 4u;
-        static constexpr auto Flight_Frames = 2u;
+        static constexpr auto Flight_Frames_Max = 8u;
+        static_assert( Flight_Frames_Max == 8u, "app::DeviceVK Flight_Frames_Max required to be equal to eight" );
+        static constexpr auto Flight_Frames = get_flight_frames( 2u );
         static_assert( Flight_Frames <= Flight_Frames_Max );
         VkDevice device;
         VkSwapchainKHR swapChain;
-        Grow< VkImageView > swapImageViews;
         VkCommandPool commandPool;
+        // NOTE: can be larger that needed (unnesed data allowed)
         Flat< VkCommandBuffer, Flight_Frames > commandBuffers;
+        Flat< VkSemaphore, Flight_Frames > flightSemaphores;
         Flat< VkFence, Flight_Frames > flightFences;
-        Flat< VkSemaphore, Flight_Frames_Max > flightSemaphores;
-        Grow< VkSemaphore > presentSemaphores; // NOTE: depends of runtime swap image chain count
+        // NOTE: depends of runtime swap image chain count
+        Grow< VkImageView > swapImageViews;
+        Grow< VkSemaphore > presentSemaphores;
         void free_command_buffers( ) const { vkFreeCommandBuffers( device, commandPool, commandBuffers.size( ), commandBuffers.data( ) ); }
         APP_CHECK_FREE( device ) vkDestroyDevice( device, nullptr ); %>
         APP_CHECK_FREE2( swap_chain, swapChain ) vkDestroySwapchainKHR( device, swapChain, nullptr ); %>
@@ -158,7 +172,6 @@ namespace app {
 
     struct SyncVK final {
         Unt2 imageIndex;
-        Unt2 flightMaxIndex;
         Unt2 flightIndex;
         VkFence flightFence;
         VkSemaphore flightSemaphore;
@@ -180,7 +193,9 @@ namespace app {
         };
         VkImageMemoryBarrier imageBarrier = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 },
         };
         Flat< VkPipelineStageFlags, 1 > stageFlags{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         VkSubmitInfo submitInfo = {
@@ -421,6 +436,7 @@ namespace app {
             if ( not isCompute ) break;
         }
         if ( queueIndex == Queue_Not_Found ) throw "App::init_vk failed: queue family without graphics and present support"s;
+        std::println( "queue family index {}", queueIndex );
         outVk.init.queueInfo.queueFamilyIndex = queueIndex;
         // -- info
         Flat< CStr, 1 > deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
@@ -435,17 +451,20 @@ namespace app {
         VkSurfaceCapabilitiesKHR caps;
         APP_THROW_VK( vkGetPhysicalDeviceSurfaceCapabilitiesKHR( vk.physicalDevice, vk.i.surface, &caps ) );
         outVk.swapExtent = caps.currentExtent;
+        // TODO: choose swap format from enumeration of available values
         outVk.swapFormat = VK_FORMAT_B8G8R8A8_UNORM;
+
+        auto minImageCount = std::max< Unt2 >( caps.minImageCount, DeviceVK::Flight_Frames );
+        if ( caps.maxImageCount ) minImageCount = std::min( caps.maxImageCount, minImageCount );
         outVk.init.swapInfo.surface = vk.i.surface;
         outVk.init.swapInfo.imageFormat = vk.swapFormat;
         outVk.init.swapInfo.imageExtent = vk.swapExtent;
-        outVk.init.swapInfo.minImageCount = caps.minImageCount;
+        outVk.init.swapInfo.minImageCount = minImageCount;
         outVk.init.swapInfo.preTransform = caps.currentTransform;
         APP_THROW_VK( vkCreateSwapchainKHR( vk.d.device, &vk.init.swapInfo, nullptr, &outVk.d.swapChain ) );
         // -- images
         Unt2 swapImageCount;
         APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr ) );
-        if ( swapImageCount > DeviceVK::Flight_Frames_Max ) throw "swap image count assumed to be not larger then 4"s;
         outVk.swapImages.resize( swapImageCount );
         APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, outVk.swapImages.data( ) ) );
         // -- views
@@ -480,18 +499,16 @@ namespace app {
 
     void sync_vk( Out< DataVK > outVk ) {
         auto const &vk = outVk;
-        // TODO: remove this, for now just for fun to check if decouple works correctly
-        free_vk( vk, true );
-        init_vk( outVk );
+        // TODO: add logic for swap chain invalidation that would just re-create logic device
+        // free_vk( vk, InstanceVK::Keep );
+        // init_vk( outVk );
         // sync cpu/gpu
-        outVk.sync.flightMaxIndex = vk.curFrame & 0b11u;
-        outVk.sync.flightIndex = vk.curFrame & 0b1u;
+        // outVk.sync.flightMaxIndex = vk.curFrame & 0b11u;
+        outVk.sync.flightIndex = vk.curFrame & ( DeviceVK::Flight_Frames - 1 );
         outVk.sync.flightFence = vk.d.flightFences[vk.sync.flightIndex];
         APP_ERROR_VK( vkWaitForFences( vk.d.device, 1, &vk.sync.flightFence, VK_TRUE, UINT64_MAX ) );
         APP_ERROR_VK( vkResetFences( vk.d.device, 1, &vk.sync.flightFence ) );
-        static_assert( std::tuple_size_v< decltype( vk.d.flightSemaphores ) > == DeviceVK::Flight_Frames_Max
-            , "assumed to be 4 to allow bitwise &b11u with up to 3 frames in flight" );
-        outVk.sync.flightSemaphore = vk.d.flightSemaphores[vk.sync.flightMaxIndex];
+        outVk.sync.flightSemaphore = vk.d.flightSemaphores[vk.sync.flightIndex];
         APP_ERROR_VK( vkAcquireNextImageKHR( vk.d.device, vk.d.swapChain, UINT64_MAX, vk.sync.flightSemaphore, VK_NULL_HANDLE, &outVk.sync.imageIndex ) );
         outVk.sync.presentSemaphore = vk.d.presentSemaphores[vk.sync.imageIndex];
     }
@@ -507,10 +524,11 @@ namespace app {
         outVk.draw.imageBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         outVk.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        vkCmdPipelineBarrier( vk.d.commandBuffers[vk.sync.flightIndex], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, Zero, Zero, nullptr, Zero, nullptr, 1, &vk.draw.imageBarrier );
+        vkCmdPipelineBarrier( vk.d.commandBuffers[vk.sync.flightIndex], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, Zero, Zero, nullptr, Zero, nullptr, 1, &vk.draw.imageBarrier );
 
         outVk.draw.colorInfo.imageView = vk.d.swapImageViews[vk.sync.imageIndex];
         outVk.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
+
         outVk.draw.renderInfo.renderArea = { .extent = vk.swapExtent };
         outVk.draw.renderInfo.pColorAttachments = &vk.draw.colorInfo;
 
