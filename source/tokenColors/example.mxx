@@ -126,11 +126,11 @@ namespace app {
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pApplicationInfo = &appInfo
         };
-        Half queuePriorities{ 1.f };
+        static constexpr Flat< Half, 1 > queuePriorities{ 1.f };
         VkDeviceQueueCreateInfo queueInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueCount = 1,
-            .pQueuePriorities = &queuePriorities
+            .queueCount = queuePriorities.size( ),
+            .pQueuePriorities = queuePriorities.data( )
         };
         VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
@@ -398,7 +398,7 @@ namespace app {
         devices.resize( 1 );
         Unt2 deviceIndex = Zero, deviceCount = 1u;
         APP_THROW_VK( vkEnumeratePhysicalDevices( vk.i.instance, &deviceCount, devices.data( ) ) );
-        if ( not deviceCount ) throw concat( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found" );
+        if ( not deviceCount ) throw concat( "vkEnumeratePhysicalDevices failed: no vulkan supported devices found"s );
         else if ( deviceCount > 1u ) {
             VkPhysicalDeviceProperties currProps;
             vkGetPhysicalDeviceProperties(devices[deviceIndex], &currProps );
