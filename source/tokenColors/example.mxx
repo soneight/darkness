@@ -22,6 +22,14 @@
 import std;
 #endif//APP_IMPORT_STD
 
+#define APP_DYNAMIC_RENDERING 0
+
+#if APP_DYNAMIC_RENDERING == 1
+#define APP_VK_API_VERSION VK_API_VERSION_1_3
+#else
+#define APP_VK_API_VERSION VK_API_VERSION_1_0
+#endif
+
 #define APP_ERROR_VK( res ) if ( res != VK_SUCCESS ) std::cerr << app::concat( "Vulkan Error: ", std::to_string( res ), "\n" );
 #define APP_THROW_VK( res ) if ( res != VK_SUCCESS ) throw app::concat( "Vulkan Error: ", std::to_string( res ) );
 
@@ -113,6 +121,12 @@ namespace app {
         APP_CHECK_RANGE_FREE2( flight_semaphores, flightSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
         APP_CHECK_RANGE_FREE2( present_semaphores, presentSemaphores, value ) vkDestroySemaphore( device, value, nullptr ); %> %>
         APP_CHECK_RANGE_FREE2( flight_fences, flightFences, value ) vkDestroyFence( device, value, nullptr ); %> %>
+#if APP_DYNAMIC_RENDERING == 0
+        VkRenderPass renderPass;
+        Grow< VkFramebuffer > frameBuffers;
+        APP_CHECK_FREE2( render_pass, renderPass ) vkDestroyRenderPass( device, renderPass, nullptr ); %>
+        APP_CHECK_RANGE_FREE2(frame_buffers, frameBuffers, value) vkDestroyFramebuffer(device, value, nullptr); %> %>
+#endif
     };
 
     struct InitVK final {
@@ -120,7 +134,7 @@ namespace app {
         VkApplicationInfo appInfo{
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pApplicationName = "example.mxx",
-            .apiVersion = VK_API_VERSION_1_3
+            .apiVersion = APP_VK_API_VERSION
         };
         VkInstanceCreateInfo instanceInfo{
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -132,13 +146,17 @@ namespace app {
             .queueCount = queuePriorities.size( ),
             .pQueuePriorities = queuePriorities.data( )
         };
+#if APP_DYNAMIC_RENDERING == 1
         VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
             .dynamicRendering = VK_TRUE
         };
+#endif
         VkDeviceCreateInfo deviceInfo{
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+#if APP_DYNAMIC_RENDERING == 1
             .pNext = &dynamicFeatures,
+#endif
             .queueCreateInfoCount = 1
         };
         VkImageViewCreateInfo viewInfo{
@@ -168,6 +186,37 @@ namespace app {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT
         };
+#if APP_DYNAMIC_RENDERING == 0
+        VkAttachmentDescription colorAttachment{
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+        VkAttachmentReference colorAttachmentRef{
+            .attachment = 0,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        };
+        VkSubpassDescription subpass{
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorAttachmentRef
+        };
+        VkRenderPassCreateInfo renderPassInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = 1,
+            .subpassCount = 1,
+            .pSubpasses = &subpass
+        };
+        VkFramebufferCreateInfo framebufferInfo{
+            .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+            .attachmentCount = 1,
+            .layers = 1
+        };
+#endif
     };
 
     struct SyncVK final {
@@ -179,7 +228,9 @@ namespace app {
     };
 
     struct DrawVK final {
+        VkClearValue clearColor = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
         VkCommandBufferBeginInfo beginInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+#if APP_DYNAMIC_RENDERING == 1
         VkRenderingAttachmentInfo colorInfo{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -191,6 +242,12 @@ namespace app {
             .layerCount = 1,
             .colorAttachmentCount = 1,
         };
+#else
+        VkRenderPassBeginInfo renderPassInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .clearValueCount = 1,
+        };
+#endif
         VkImageMemoryBarrier imageBarrier = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -340,7 +397,7 @@ namespace app {
         // instance
         // -- layers
         // TODO: add check if validation layers are even supported
-        // \ also only add it only in debug builds
+        // \ also add it only in debug builds
         Grow< CStr > layers{ };
         layers.reserve( 1u ); // NOTE: reserve up to maximum possible layers that can occur in this function
         if constexpr ( InitVK::Enable_Validation ) {
@@ -377,6 +434,10 @@ namespace app {
         if ( not vk.d.commandPool ) goto device_;
         vk.d.free_command_buffers( );
         vk.d.free_command_pool(  );
+#if APP_DYNAMIC_RENDERING == 0
+        vk.d.free_render_pass< Check >( );
+        vk.d.free_frame_buffers< Check >( );
+#endif
     device_:
         vk.d.free_device( );
     instance_:
@@ -467,12 +528,27 @@ namespace app {
         APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, nullptr ) );
         outVk.swapImages.resize( swapImageCount );
         APP_THROW_VK( vkGetSwapchainImagesKHR( vk.d.device, vk.d.swapChain, &swapImageCount, outVk.swapImages.data( ) ) );
-        // -- views
+#if APP_DYNAMIC_RENDERING == 0
+        // 1.1 (no dynamic rendering)
+        outVk.init.colorAttachment.format = vk.swapFormat;
+        outVk.init.renderPassInfo.pAttachments = &vk.init.colorAttachment;
+        // -- views and framebuffers
+        vkCreateRenderPass( vk.d.device, &vk.init.renderPassInfo, nullptr, &outVk.d.renderPass );
+        outVk.d.frameBuffers.resize( swapImageCount );
+#endif
         outVk.d.swapImageViews.resize( swapImageCount );
         outVk.init.viewInfo.format = vk.swapFormat;
         for ( Size i = Zero; i < swapImageCount; ++i ) {
             outVk.init.viewInfo.image = vk.swapImages[i];
             APP_THROW_VK( vkCreateImageView( vk.d.device, &vk.init.viewInfo, nullptr, &outVk.d.swapImageViews[i] ) );
+#if APP_DYNAMIC_RENDERING == 0
+            // 1.1 (no dynamic rendering)
+            outVk.init.framebufferInfo.renderPass = vk.d.renderPass;
+            outVk.init.framebufferInfo.width = vk.init.swapInfo.imageExtent.width;
+            outVk.init.framebufferInfo.height = vk.init.swapInfo.imageExtent.height;
+            outVk.init.framebufferInfo.pAttachments = &vk.d.swapImageViews[i];
+            vkCreateFramebuffer( vk.d.device, &vk.init.framebufferInfo, nullptr, &outVk.d.frameBuffers[i] );
+#endif
         }
         // command
         // -- pool
@@ -525,17 +601,26 @@ namespace app {
         outVk.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         vkCmdPipelineBarrier( vk.d.commandBuffers[vk.sync.flightIndex], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, Zero, Zero, nullptr, Zero, nullptr, 1, &vk.draw.imageBarrier );
-
+#if APP_DYNAMIC_RENDERING == 1
         outVk.draw.colorInfo.imageView = vk.d.swapImageViews[vk.sync.imageIndex];
-        outVk.draw.colorInfo.clearValue = { .color{ .float32{ .1f, .4f, .4f, 1.f } } };
+        outVk.draw.colorInfo.clearValue = vk.draw.clearColor;
 
         outVk.draw.renderInfo.renderArea = { .extent = vk.swapExtent };
         outVk.draw.renderInfo.pColorAttachments = &vk.draw.colorInfo;
-
         vkCmdBeginRendering( vk.d.commandBuffers[vk.sync.flightIndex], &vk.draw.renderInfo );
-        // draw calls here
-        vkCmdEndRendering( vk.d.commandBuffers[vk.sync.flightIndex] );
+#else
+        outVk.draw.renderPassInfo.renderPass = vk.d.renderPass;
+        outVk.draw.renderPassInfo.framebuffer = vk.d.frameBuffers[vk.sync.imageIndex];
+        outVk.draw.renderPassInfo.renderArea = { .extent = vk.swapExtent };
+        outVk.draw.renderPassInfo.pClearValues = &vk.draw.clearColor;
 
+        vkCmdBeginRenderPass(vk.d.commandBuffers[vk.sync.flightIndex], &vk.draw.renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+#endif
+#if APP_DYNAMIC_RENDERING == 0
+        vkCmdEndRenderPass(vk.d.commandBuffers[vk.sync.flightIndex]);
+#else
+        vkCmdEndRendering( vk.d.commandBuffers[vk.sync.flightIndex] );
+#endif
         outVk.draw.imageBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         outVk.draw.imageBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         outVk.draw.imageBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
