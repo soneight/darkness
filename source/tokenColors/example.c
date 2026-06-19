@@ -86,7 +86,7 @@ typedef char const *Son8CStr;
 
 SON8_EXTERN_CBEG
 
-typedef enum {
+typedef enum AppError {
     App_Error_None,
     App_Error_Argc,
     App_Error_Log,
@@ -109,11 +109,11 @@ static Son8CStr App_Text_Error[App_Error_Last_] = {
     "XCreateGC failed"
 };
 
-typedef struct {
+typedef struct AppFrameBuffer {
     Son8Unt2 data[APP_XSIZE][APP_YSIZE];
 } AppFrameBuffer;
 
-typedef struct {
+typedef struct AppX11 {
     Display *display;
     int screen;
     Window root;
@@ -127,7 +127,7 @@ typedef struct {
     GC graphicContext;
 } AppX11;
 
-typedef struct {
+typedef struct App {
     AppFrameBuffer frameBuffers[2];
     AppFrameBuffer *waitBuffer;
     AppFrameBuffer *drawBuffer;
@@ -151,7 +151,7 @@ void     app_show( App *outApp );
 SON8_EXTERN_CEND
 
 int main( int argc, char *argv[] ) {
-    /* declarations, not mix with code */
+    /* decl */
     time_t timeBegSec, timeEndSec, timeDiffSec;
     FILE *logFile;
     Son8Unt3 prevFrame = 0u;
